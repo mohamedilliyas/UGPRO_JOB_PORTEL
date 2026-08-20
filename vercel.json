@@ -7,16 +7,7 @@
   },
   "routes": [
     {
-      "src": "/images/(.*)",
-      "dest": "/images/$1"
-    },
-    {
-      "src": "/style.css",
-      "dest": "/style.css"
-    },
-    {
-      "src": "/uploads/(.*)",
-      "dest": "/uploads/$1"
+      "handle": "filesystem"
     },
     {
       "src": "/(.*)",

@@ -29,12 +29,40 @@ if (APP_ENV === 'development') {
     ini_set('display_errors', '0');
 }
 
-// Database Credentials
-define('DB_HOST', getenv('DB_HOST') ?: '127.0.0.1');
-define('DB_USER', getenv('DB_USER') ?: 'root');
-define('DB_PASS', getenv('DB_PASS') !== false ? getenv('DB_PASS') : '');
-define('DB_NAME', getenv('DB_NAME') ?: 'vavuniyauniversity');
-define('DB_PORT', getenv('DB_PORT') ?: 3306);
+// Check for single DATABASE_URL or MYSQL_URL (e.g. from Aiven Service URI)
+$dbUrl = getenv('DATABASE_URL') ?: getenv('MYSQL_URL') ?: getenv('SERVICE_URI');
+
+$dbHost = '127.0.0.1';
+$dbUser = 'root';
+$dbPass = '';
+$dbName = 'vavuniyauniversity';
+$dbPort = 3306;
+
+if (!empty($dbUrl)) {
+    $parsed = parse_url($dbUrl);
+    if ($parsed) {
+        $dbHost = $parsed['host'] ?? $dbHost;
+        $dbUser = $parsed['user'] ?? $dbUser;
+        $dbPass = $parsed['pass'] ?? $dbPass;
+        $dbPort = $parsed['port'] ?? $dbPort;
+        if (!empty($parsed['path'])) {
+            $dbName = trim($parsed['path'], '/');
+        }
+    }
+} else {
+    $dbHost = getenv('DB_HOST') ?: $dbHost;
+    $dbUser = getenv('DB_USER') ?: $dbUser;
+    $dbPass = getenv('DB_PASS') !== false ? getenv('DB_PASS') : $dbPass;
+    $dbName = getenv('DB_NAME') ?: $dbName;
+    $dbPort = getenv('DB_PORT') ?: $dbPort;
+}
+
+// Database Credentials Constants
+define('DB_HOST', $dbHost);
+define('DB_USER', $dbUser);
+define('DB_PASS', $dbPass);
+define('DB_NAME', $dbName);
+define('DB_PORT', (int)$dbPort);
 
 // Application Meta
 define('APP_NAME', 'UgPro - University Career & Job Portal');
