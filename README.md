@@ -1,3 +1,13 @@
+---
+title: UgPro Job Portal
+emoji: 🎓
+colorFrom: green
+colorTo: blue
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # UgPro - University Career & Job Portal
 
 > **A modern, full-featured University Job & Career Portal connecting undergraduates with top industry employers, verified internships, and placement opportunities.**
