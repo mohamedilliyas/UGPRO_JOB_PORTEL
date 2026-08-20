@@ -91,8 +91,8 @@ require_once __DIR__ . '/includes/navbar.php';
 <div class="obj-width my-5">
     <nav aria-label="breadcrumb" class="mb-4">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="index.php">Home</a></li>
-            <li class="breadcrumb-item"><a href="jobs.php">Jobs</a></li>
+            <li class="breadcrumb-item"><a href="<?= BASE_URL ?>index.php">Home</a></li>
+            <li class="breadcrumb-item"><a href="<?= BASE_URL ?>jobs.php">Jobs</a></li>
             <li class="breadcrumb-item active" aria-current="page"><?= htmlspecialchars($job['title']) ?></li>
         </ol>
     </nav>

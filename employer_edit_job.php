@@ -10,7 +10,7 @@ $jobId = intval($_GET['id'] ?? 0);
 $errors = [];
 
 if ($jobId <= 0) {
-    header("Location: profile_employer.php");
+    header("Location: " . BASE_URL . "profile_employer.php");
     exit();
 }
 
@@ -23,7 +23,7 @@ $stmt->close();
 
 if (!$job) {
     set_flash('danger', 'Job posting not found or unauthorized access.');
-    header("Location: profile_employer.php");
+    header("Location: " . BASE_URL . "profile_employer.php");
     exit();
 }
 
@@ -62,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($upStmt->execute()) {
             set_flash('success', "Job posting '{$title}' has been successfully updated!");
-            header("Location: profile_employer.php?tab=jobs");
+            header("Location: " . BASE_URL . "profile_employer.php?tab=jobs");
             exit();
         } else {
             $errors[] = "Update failed: " . $connect->error;

@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_application_st
         $upStmt->close();
     }
     $verifyStmt->close();
-    header("Location: employer_applicants.php" . ($filterJobId > 0 ? "?job_id=" . $filterJobId : ""));
+    header("Location: " . BASE_URL . "employer_applicants.php" . ($filterJobId > 0 ? "?job_id=" . $filterJobId : ""));
     exit();
 }
 

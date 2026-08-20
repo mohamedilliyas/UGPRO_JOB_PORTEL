@@ -82,7 +82,7 @@ require_once __DIR__ . '/includes/navbar.php';
         
         <!-- Search Bar -->
         <div class="mx-auto" style="max-width: 650px;">
-            <form method="GET" action="jobs.php" class="bg-white p-2 rounded-pill shadow-lg d-flex align-items-center">
+            <form method="GET" action="<?= BASE_URL ?>jobs.php" class="bg-white p-2 rounded-pill shadow-lg d-flex align-items-center">
                 <i class="bi bi-search text-muted ms-3 fs-5"></i>
                 <input type="text" name="q" class="form-control border-0 shadow-none px-3" placeholder="Job title, keywords, or company name..." value="<?= htmlspecialchars($search) ?>">
                 <?php if (!empty($categorySlug)): ?><input type="hidden" name="category" value="<?= htmlspecialchars($categorySlug) ?>"><?php endif; ?>
@@ -99,10 +99,10 @@ require_once __DIR__ . '/includes/navbar.php';
             <div class="card border-0 shadow-sm rounded-4 p-4 sticky-top" style="top: 100px;">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="fw-bold mb-0"><i class="bi bi-funnel text-success me-2"></i>Filters</h5>
-                    <a href="jobs.php" class="small text-muted text-decoration-none">Clear All</a>
+                    <a href="<?= BASE_URL ?>jobs.php" class="small text-muted text-decoration-none">Clear All</a>
                 </div>
 
-                <form method="GET" action="jobs.php">
+                <form method="GET" action="<?= BASE_URL ?>jobs.php">
                     <?php if (!empty($search)): ?>
                         <input type="hidden" name="q" value="<?= htmlspecialchars($search) ?>">
                     <?php endif; ?>
@@ -131,7 +131,7 @@ require_once __DIR__ . '/includes/navbar.php';
                             </div>
                         <?php endforeach; ?>
                         <?php if (!empty($jobType)): ?>
-                            <a href="jobs.php?<?= http_build_query(array_merge($_GET, ['type' => ''])) ?>" class="small text-danger d-block mt-1">Clear Type</a>
+                            <a href="<?= BASE_URL ?>jobs.php?<?= http_build_query(array_merge($_GET, ['type' => ''])) ?>" class="small text-danger d-block mt-1">Clear Type</a>
                         <?php endif; ?>
                     </div>
 
@@ -146,7 +146,7 @@ require_once __DIR__ . '/includes/navbar.php';
                             </div>
                         <?php endforeach; ?>
                         <?php if (!empty($workplace)): ?>
-                            <a href="jobs.php?<?= http_build_query(array_merge($_GET, ['workplace' => ''])) ?>" class="small text-danger d-block mt-1">Clear Model</a>
+                            <a href="<?= BASE_URL ?>jobs.php?<?= http_build_query(array_merge($_GET, ['workplace' => ''])) ?>" class="small text-danger d-block mt-1">Clear Model</a>
                         <?php endif; ?>
                     </div>
 
@@ -211,7 +211,7 @@ require_once __DIR__ . '/includes/navbar.php';
                     <i class="bi bi-search text-muted fs-1 mb-3"></i>
                     <h5>No jobs matched your criteria</h5>
                     <p class="text-muted small">Try broadening your search term or clearing filter selections.</p>
-                    <a href="jobs.php" class="btn btn-primary-ugpro rounded-pill btn-sm px-4 mx-auto" style="width: auto;">View All Jobs</a>
+                    <a href="<?= BASE_URL ?>jobs.php" class="btn btn-primary-ugpro rounded-pill btn-sm px-4 mx-auto" style="width: auto;">View All Jobs</a>
                 </div>
             <?php endif; ?>
         </div>

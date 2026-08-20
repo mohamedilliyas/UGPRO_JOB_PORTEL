@@ -46,7 +46,7 @@ require_once __DIR__ . '/includes/navbar.php';
         
         <!-- Search Bar -->
         <div class="mx-auto" style="max-width: 650px;">
-            <form method="GET" action="browse_candidates.php" class="bg-white p-2 rounded-pill shadow-lg d-flex align-items-center">
+            <form method="GET" action="<?= BASE_URL ?>browse_candidates.php" class="bg-white p-2 rounded-pill shadow-lg d-flex align-items-center">
                 <i class="bi bi-search text-muted ms-3 fs-5"></i>
                 <input type="text" name="q" class="form-control border-0 shadow-none px-3" placeholder="Search by name, skill (e.g. React, Python), or course..." value="<?= htmlspecialchars($search) ?>">
                 <button type="submit" class="btn btn-primary-ugpro rounded-pill px-4" style="width: auto;">Search Talent</button>
@@ -58,10 +58,10 @@ require_once __DIR__ . '/includes/navbar.php';
 <div class="obj-width my-5">
     <!-- Faculty Filter Pills -->
     <div class="d-flex justify-content-center flex-wrap gap-2 mb-4">
-        <a href="browse_candidates.php<?= !empty($search) ? '?q=' . urlencode($search) : '' ?>" class="cat-pill <?= empty($faculty) ? 'active' : '' ?>">All Faculties</a>
-        <a href="browse_candidates.php?faculty=<?= urlencode('Faculty of Applied Science') ?><?= !empty($search) ? '&q=' . urlencode($search) : '' ?>" class="cat-pill <?= $faculty === 'Faculty of Applied Science' ? 'active' : '' ?>">Applied Science</a>
-        <a href="browse_candidates.php?faculty=<?= urlencode('Faculty of Business Studies') ?><?= !empty($search) ? '&q=' . urlencode($search) : '' ?>" class="cat-pill <?= $faculty === 'Faculty of Business Studies' ? 'active' : '' ?>">Business Studies</a>
-        <a href="browse_candidates.php?faculty=<?= urlencode('Faculty of Technological Studies') ?><?= !empty($search) ? '&q=' . urlencode($search) : '' ?>" class="cat-pill <?= $faculty === 'Faculty of Technological Studies' ? 'active' : '' ?>">Technological Studies</a>
+        <a href="<?= BASE_URL ?>browse_candidates.php<?= !empty($search) ? '?q=' . urlencode($search) : '' ?>" class="cat-pill <?= empty($faculty) ? 'active' : '' ?>">All Faculties</a>
+        <a href="<?= BASE_URL ?>browse_candidates.php?faculty=<?= urlencode('Faculty of Applied Science') ?><?= !empty($search) ? '&q=' . urlencode($search) : '' ?>" class="cat-pill <?= $faculty === 'Faculty of Applied Science' ? 'active' : '' ?>">Applied Science</a>
+        <a href="<?= BASE_URL ?>browse_candidates.php?faculty=<?= urlencode('Faculty of Business Studies') ?><?= !empty($search) ? '&q=' . urlencode($search) : '' ?>" class="cat-pill <?= $faculty === 'Faculty of Business Studies' ? 'active' : '' ?>">Business Studies</a>
+        <a href="<?= BASE_URL ?>browse_candidates.php?faculty=<?= urlencode('Faculty of Technological Studies') ?><?= !empty($search) ? '&q=' . urlencode($search) : '' ?>" class="cat-pill <?= $faculty === 'Faculty of Technological Studies' ? 'active' : '' ?>">Technological Studies</a>
     </div>
 
     <!-- Candidate Cards Grid -->

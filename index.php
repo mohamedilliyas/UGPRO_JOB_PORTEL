@@ -67,7 +67,7 @@ require_once __DIR__ . '/includes/navbar.php';
                 </p>
 
                 <!-- Search Box Form -->
-                <form method="GET" action="jobs.php" class="hero-search-box mb-4">
+                <form method="GET" action="<?= BASE_URL ?>jobs.php" class="hero-search-box mb-4">
                     <span class="input-group-text"><i class="bi bi-search"></i></span>
                     <input type="text" name="q" class="form-control" placeholder="Job title, technical skill, or company...">
                     <button type="submit" class="hero-search-btn">Search Jobs</button>
@@ -121,7 +121,7 @@ require_once __DIR__ . '/includes/navbar.php';
         <div class="row g-3">
             <?php foreach ($categories as $cat): ?>
                 <div class="col-lg-3 col-md-4 col-6">
-                    <a href="jobs.php?category=<?= htmlspecialchars($cat['slug']) ?>" class="card border-0 shadow-sm rounded-4 p-3 text-center h-100 text-decoration-none hover-card" style="background: var(--light-bg); transition: var(--transition);">
+                    <a href="<?= BASE_URL ?>jobs.php?category=<?= htmlspecialchars($cat['slug']) ?>" class="card border-0 shadow-sm rounded-4 p-3 text-center h-100 text-decoration-none hover-card" style="background: var(--light-bg); transition: var(--transition);">
                         <div class="feature-icon-wrap mb-2" style="width: 50px; height: 50px; font-size: 1.4rem;">
                             <i class="bi <?= htmlspecialchars($cat['icon'] ?? 'bi-briefcase') ?>"></i>
                         </div>
@@ -145,11 +145,11 @@ require_once __DIR__ . '/includes/navbar.php';
 
         <!-- Filter Pills -->
         <div class="category-pills">
-            <a href="jobs.php" class="cat-pill active">Recent Jobs</a>
-            <a href="jobs.php?type=Full+Time" class="cat-pill">Full Time</a>
-            <a href="jobs.php?type=Internship" class="cat-pill">Internships</a>
-            <a href="jobs.php?workplace=Remote" class="cat-pill">Remote Roles</a>
-            <a href="jobs.php?type=Freelancer" class="cat-pill">Freelancer</a>
+            <a href="<?= BASE_URL ?>jobs.php" class="cat-pill active">Recent Jobs</a>
+            <a href="<?= BASE_URL ?>jobs.php?type=Full+Time" class="cat-pill">Full Time</a>
+            <a href="<?= BASE_URL ?>jobs.php?type=Internship" class="cat-pill">Internships</a>
+            <a href="<?= BASE_URL ?>jobs.php?workplace=Remote" class="cat-pill">Remote Roles</a>
+            <a href="<?= BASE_URL ?>jobs.php?type=Freelancer" class="cat-pill">Freelancer</a>
         </div>
 
         <!-- Jobs Grid -->
@@ -195,7 +195,7 @@ require_once __DIR__ . '/includes/navbar.php';
         <?php endif; ?>
 
         <div class="text-center">
-            <a href="jobs.php" class="btn btn-primary-ugpro rounded-pill px-5 py-3" style="width: auto;">
+            <a href="<?= BASE_URL ?>jobs.php" class="btn btn-primary-ugpro rounded-pill px-5 py-3" style="width: auto;">
                 <i class="bi bi-grid-fill me-2"></i> View All Available Job Vacancies
             </a>
         </div>
@@ -269,8 +269,8 @@ require_once __DIR__ . '/includes/navbar.php';
         <h2 class="text-white fw-bold mb-3">Ready to Launch Your Career Journey?</h2>
         <p class="text-white-50 mb-4 fs-5">Create your student profile today, showcase your portfolio, and apply for life-changing internships and graduate roles.</p>
         <div class="d-flex flex-wrap justify-content-center gap-3">
-            <a href="signup_undergraduate.php" class="btn btn-success btn-lg rounded-pill px-5">Join as Undergraduate</a>
-            <a href="signup_employer.php" class="btn btn-outline-light btn-lg rounded-pill px-5">Register as Employer</a>
+            <a href="<?= BASE_URL ?>signup_undergraduate.php" class="btn btn-success btn-lg rounded-pill px-5">Join as Undergraduate</a>
+            <a href="<?= BASE_URL ?>signup_employer.php" class="btn btn-outline-light btn-lg rounded-pill px-5">Register as Employer</a>
         </div>
     </div>
 </section>

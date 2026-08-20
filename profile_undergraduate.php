@@ -73,9 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
         $upStmt->bind_param("ssssisssssssssi", $fullName, $phone, $faculty, $course, $gradYear, $regNo, $bio, $skills, $projects, $github, $linkedin, $portfolio, $profileImage, $resumeFile, $studentId);
 
         if ($upStmt->execute()) {
-            $_SESSION['user_name'] = $fullName;
-            $_SESSION['user_course'] = $course;
-            $_SESSION['fullname'] = $fullName;
+            set_user_session($studentId, 'student', $fullName, $student['email'] ?? $_SESSION['user_email'], $profileImage, $course);
             $updateSuccess = "Your profile has been updated successfully!";
             $activeTab = 'overview';
         } else {
@@ -93,8 +91,8 @@ $student = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
 if (!$student) {
-    session_destroy();
-    header("Location: signin_undergraduate.php");
+    clear_user_session();
+    header("Location: " . BASE_URL . "signin_undergraduate.php");
     exit();
 }
 

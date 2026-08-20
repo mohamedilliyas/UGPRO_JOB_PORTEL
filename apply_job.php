@@ -35,7 +35,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'bookmark') {
         $check->close();
     }
 
-    $referer = $_SERVER['HTTP_REFERER'] ?? 'jobs.php';
+    $referer = $_SERVER['HTTP_REFERER'] ?? (BASE_URL . 'jobs.php');
     header("Location: " . $referer);
     exit();
 }
@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($jobId <= 0) {
         set_flash('danger', 'Invalid job selection.');
-        header("Location: jobs.php");
+        header("Location: " . BASE_URL . "jobs.php");
         exit();
     }
 
@@ -60,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($checkStmt->get_result()->num_rows > 0) {
         set_flash('warning', 'You have already submitted an application for this position.');
         $checkStmt->close();
-        header("Location: job_details.php?id=" . $jobId);
+        header("Location: " . BASE_URL . "job_details.php?id=" . $jobId);
         exit();
     }
     $checkStmt->close();
@@ -73,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $resumePath = $upload['filePath'];
         } else {
             set_flash('danger', "Resume upload error: " . $upload['error']);
-            header("Location: job_details.php?id=" . $jobId);
+            header("Location: " . BASE_URL . "job_details.php?id=" . $jobId);
             exit();
         }
     } else {
@@ -92,15 +92,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($appStmt->execute()) {
         set_flash('success', '🎉 Application submitted successfully! The employer has been notified.');
-        header("Location: profile_undergraduate.php?tab=applications");
+        header("Location: " . BASE_URL . "profile_undergraduate.php?tab=applications");
         exit();
     } else {
         set_flash('danger', 'Failed to submit application: ' . $connect->error);
-        header("Location: job_details.php?id=" . $jobId);
+        header("Location: " . BASE_URL . "job_details.php?id=" . $jobId);
         exit();
     }
     $appStmt->close();
 }
 
-header("Location: jobs.php");
+header("Location: " . BASE_URL . "jobs.php");
 exit();

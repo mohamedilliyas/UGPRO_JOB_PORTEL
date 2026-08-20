@@ -19,7 +19,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'toggle_status' && isset($_GET
         set_flash('success', 'Job listing status updated successfully.');
     }
     $stmt->close();
-    header("Location: profile_employer.php?tab=jobs");
+    header("Location: " . BASE_URL . "profile_employer.php?tab=jobs");
     exit();
 }
 
@@ -32,7 +32,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'delete_job' && isset($_GET['j
         set_flash('success', 'Job posting has been deleted.');
     }
     $stmt->close();
-    header("Location: profile_employer.php?tab=jobs");
+    header("Location: " . BASE_URL . "profile_employer.php?tab=jobs");
     exit();
 }
 
@@ -46,10 +46,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_company_profil
     $about = clean_input($_POST['about'] ?? '');
 
     // Current logo
-    $currStmt = $connect->prepare("SELECT company_logo FROM employer WHERE id = ?");
+    $currStmt = $connect->prepare("SELECT company_logo, email FROM employer WHERE id = ?");
     $currStmt->bind_param("i", $employerId);
     $currStmt->execute();
-    $currLogo = $currStmt->get_result()->fetch_assoc()['company_logo'] ?? 'images/google.png';
+    $currRow = $currStmt->get_result()->fetch_assoc();
+    $currLogo = $currRow['company_logo'] ?? 'images/google.png';
+    $currEmail = $currRow['email'] ?? $_SESSION['user_email'];
     $currStmt->close();
 
     $logoPath = $currLogo;
@@ -79,7 +81,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_company_profil
         $upStmt->bind_param("sssssssi", $companyName, $website, $location, $industry, $phone, $about, $logoPath, $employerId);
 
         if ($upStmt->execute()) {
-            $_SESSION['user_name'] = $companyName;
+            set_user_session($employerId, 'employer', $companyName, $currEmail, $logoPath);
+            $_SESSION['employer_id'] = $employerId;
             $_SESSION['company_name'] = $companyName;
             $updateSuccess = "Company profile updated successfully!";
             $activeTab = 'settings';
@@ -98,8 +101,8 @@ $employer = $empStmt->get_result()->fetch_assoc();
 $empStmt->close();
 
 if (!$employer) {
-    session_destroy();
-    header("Location: signin_employer.php");
+    clear_user_session();
+    header("Location: " . BASE_URL . "signin_employer.php");
     exit();
 }
 

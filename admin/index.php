@@ -16,7 +16,7 @@ if (isset($_GET['action'])) {
     if ($action === 'toggle_job' && $id > 0) {
         $connect->query("UPDATE jobs SET status = IF(status = 'active', 'closed', 'active') WHERE id = {$id}");
         set_flash('success', 'Job status updated.');
-        header("Location: index.php?tab=jobs");
+        header("Location: " . BASE_URL . "admin/index.php?tab=jobs");
         exit();
     }
 
@@ -24,7 +24,7 @@ if (isset($_GET['action'])) {
     if ($action === 'delete_job' && $id > 0) {
         $connect->query("DELETE FROM jobs WHERE id = {$id}");
         set_flash('success', 'Job posting deleted.');
-        header("Location: index.php?tab=jobs");
+        header("Location: " . BASE_URL . "admin/index.php?tab=jobs");
         exit();
     }
 
@@ -32,7 +32,7 @@ if (isset($_GET['action'])) {
     if ($action === 'toggle_student' && $id > 0) {
         $connect->query("UPDATE undergraduate SET status = IF(status = 'active', 'banned', 'active') WHERE id = {$id}");
         set_flash('success', 'Student account status updated.');
-        header("Location: index.php?tab=students");
+        header("Location: " . BASE_URL . "admin/index.php?tab=students");
         exit();
     }
 
@@ -40,7 +40,7 @@ if (isset($_GET['action'])) {
     if ($action === 'delete_student' && $id > 0) {
         $connect->query("DELETE FROM undergraduate WHERE id = {$id}");
         set_flash('success', 'Student record deleted.');
-        header("Location: index.php?tab=students");
+        header("Location: " . BASE_URL . "admin/index.php?tab=students");
         exit();
     }
 
@@ -48,7 +48,7 @@ if (isset($_GET['action'])) {
     if ($action === 'toggle_employer' && $id > 0) {
         $connect->query("UPDATE employer SET status = IF(status = 'active', 'suspended', 'active') WHERE id = {$id}");
         set_flash('success', 'Employer account status updated.');
-        header("Location: index.php?tab=employers");
+        header("Location: " . BASE_URL . "admin/index.php?tab=employers");
         exit();
     }
 
@@ -56,21 +56,21 @@ if (isset($_GET['action'])) {
     if ($action === 'delete_employer' && $id > 0) {
         $connect->query("DELETE FROM employer WHERE id = {$id}");
         set_flash('success', 'Employer company deleted.');
-        header("Location: index.php?tab=employers");
+        header("Location: " . BASE_URL . "admin/index.php?tab=employers");
         exit();
     }
 
     // 7. Mark Message Read / Delete
     if ($action === 'mark_read' && $id > 0) {
         $connect->query("UPDATE contact_messages SET status = 'read' WHERE id = {$id}");
-        header("Location: index.php?tab=messages");
+        header("Location: " . BASE_URL . "admin/index.php?tab=messages");
         exit();
     }
 
     if ($action === 'delete_msg' && $id > 0) {
         $connect->query("DELETE FROM contact_messages WHERE id = {$id}");
         set_flash('success', 'Message deleted.');
-        header("Location: index.php?tab=messages");
+        header("Location: " . BASE_URL . "admin/index.php?tab=messages");
         exit();
     }
 }
@@ -90,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_category'])) {
             set_flash('danger', 'Failed to add category: ' . $connect->error);
         }
         $stmt->close();
-        header("Location: index.php?tab=categories");
+        header("Location: " . BASE_URL . "admin/index.php?tab=categories");
         exit();
     }
 }

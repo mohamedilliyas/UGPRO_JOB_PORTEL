@@ -100,7 +100,7 @@ require_once __DIR__ . '/includes/navbar.php';
                     </div>
                 <?php endif; ?>
 
-                <form method="POST" action="contact.php">
+                <form method="POST" action="<?= BASE_URL ?>contact.php">
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label for="name" class="form-label">Your Name *</label>

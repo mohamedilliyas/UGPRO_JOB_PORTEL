@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($stmt->execute()) {
             $newJobId = $stmt->insert_id;
             set_flash('success', "Job posting '{$title}' has been successfully published!");
-            header("Location: job_details.php?id=" . $newJobId);
+            header("Location: " . BASE_URL . "job_details.php?id=" . $newJobId);
             exit();
         } else {
             $errors[] = "Failed to post job: " . $connect->error;
@@ -78,7 +78,7 @@ require_once __DIR__ . '/includes/navbar.php';
             </div>
         <?php endif; ?>
 
-        <form method="POST" action="employer_post_job.php">
+        <form method="POST" action="<?= BASE_URL ?>employer_post_job.php">
             <div class="row g-3">
                 <div class="col-md-8">
                     <label for="title" class="form-label">Job Title *</label>
