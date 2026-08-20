@@ -3,9 +3,19 @@
  * Master Configuration File - UgPro University Job Portal
  */
 
+// Detect serverless environment (Vercel, AWS Lambda, etc.)
+$isServerless = (getenv('VERCEL') || getenv('AWS_LAMBDA_FUNCTION_NAME') || !is_writable(__DIR__));
+
+if ($isServerless) {
+    if (!is_dir('/tmp/sessions')) {
+        @mkdir('/tmp/sessions', 0777, true);
+    }
+    @session_save_path('/tmp/sessions');
+}
+
 // Start session if not already started
 if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+    @session_start();
 }
 
 // Environment settings
@@ -32,7 +42,7 @@ define('APP_TAGLINE', 'Connecting Undergraduates with Top Industry Employers');
 define('APP_EMAIL', 'support@ugpro.lk');
 
 // Dynamic Base URL calculation
-$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? "https://" : "http://";
+$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') ? "https://" : "http://";
 $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
 $scriptDir = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? ''));
 
@@ -40,9 +50,10 @@ $scriptDir = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? ''));
 define('ROOT_PATH', rtrim(str_replace('\\', '/', __DIR__), '/') . '/');
 
 // Base URL helper
-// If script is in a subdirectory (like /admin or /jobs), adjust base url
 $currentDir = rtrim($scriptDir, '/');
-if (substr($currentDir, -6) === '/admin') {
+if ($isServerless) {
+    $baseUrl = $protocol . $host . '/';
+} elseif (substr($currentDir, -6) === '/admin') {
     $baseUrl = $protocol . $host . substr($currentDir, 0, -6) . '/';
 } elseif (substr($currentDir, -5) === '/jobs') {
     $baseUrl = $protocol . $host . substr($currentDir, 0, -5) . '/';
@@ -52,12 +63,16 @@ if (substr($currentDir, -6) === '/admin') {
 define('BASE_URL', $baseUrl);
 
 // Upload Directories
-define('UPLOAD_DIR', ROOT_PATH . 'uploads/');
+if ($isServerless) {
+    define('UPLOAD_DIR', '/tmp/uploads/');
+} else {
+    define('UPLOAD_DIR', ROOT_PATH . 'uploads/');
+}
 define('PROFILE_UPLOAD_DIR', UPLOAD_DIR . 'profiles/');
 define('LOGO_UPLOAD_DIR', UPLOAD_DIR . 'logos/');
 define('RESUME_UPLOAD_DIR', UPLOAD_DIR . 'resumes/');
 
-// Ensure upload folders exist
+// Ensure upload folders exist safely
 foreach ([UPLOAD_DIR, PROFILE_UPLOAD_DIR, LOGO_UPLOAD_DIR, RESUME_UPLOAD_DIR] as $dir) {
     if (!file_exists($dir)) {
         @mkdir($dir, 0777, true);

@@ -1,13 +1,7 @@
 {
   "version": 2,
   "functions": {
-    "*.php": {
-      "runtime": "vercel-php@0.7.2"
-    },
-    "admin/*.php": {
-      "runtime": "vercel-php@0.7.2"
-    },
-    "jobs/*.php": {
+    "api/index.php": {
       "runtime": "vercel-php@0.7.2"
     }
   },
@@ -26,7 +20,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "/$1"
+      "dest": "/api/index.php"
     }
   ]
 }
