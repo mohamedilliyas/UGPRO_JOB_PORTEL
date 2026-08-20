@@ -11,18 +11,34 @@ if (!defined('USERNAME')) define('USERNAME', DB_USER);
 if (!defined('PASSWORD')) define('PASSWORD', DB_PASS);
 if (!defined('DBNAME')) define('DBNAME', DB_NAME);
 
-// Attempt database connection with intelligent password fallback for local dev
+// Attempt database connection with intelligent SSL and password fallback
 $passwordsToTry = [DB_PASS, '', 'mariadb', 'root'];
 $connect = null;
 $lastError = '';
 
-// Filter unique passwords to avoid duplicate attempts
 $passwordsToTry = array_values(array_unique($passwordsToTry));
 
 foreach ($passwordsToTry as $pwd) {
     try {
         mysqli_report(MYSQLI_REPORT_OFF);
-        $conn = @mysqli_connect(DB_HOST, DB_USER, $pwd, DB_NAME, DB_PORT);
+
+        // 1. First attempt SSL connection (for cloud MySQL providers like Aiven)
+        $conn = mysqli_init();
+        if (defined('MYSQLI_OPT_SSL_VERIFY_SERVER_CERT')) {
+            @mysqli_options($conn, MYSQLI_OPT_SSL_VERIFY_SERVER_CERT, false);
+        }
+        
+        $flags = defined('MYSQLI_CLIENT_SSL_DONT_VERIFY_SERVER_CERT') ? (MYSQLI_CLIENT_SSL_DONT_VERIFY_SERVER_CERT | MYSQLI_CLIENT_SSL) : MYSQLI_CLIENT_SSL;
+        $connected = @mysqli_real_connect($conn, DB_HOST, DB_USER, $pwd, DB_NAME, (int)DB_PORT, NULL, $flags);
+
+        if ($connected) {
+            $connect = $conn;
+            mysqli_set_charset($connect, 'utf8mb4');
+            break;
+        }
+
+        // 2. Fallback to standard connect (for local dev / non-SSL servers)
+        $conn = @mysqli_connect(DB_HOST, DB_USER, $pwd, DB_NAME, (int)DB_PORT);
         if ($conn) {
             $connect = $conn;
             mysqli_set_charset($connect, 'utf8mb4');
@@ -35,26 +51,6 @@ foreach ($passwordsToTry as $pwd) {
     }
 }
 
-// If connection failed completely
-if (!$connect) {
-    // Check if database simply does not exist yet (error 1049)
-    $tmpConn = @mysqli_connect(DB_HOST, DB_USER, '', '', DB_PORT);
-    if (!$tmpConn) {
-        $tmpConn = @mysqli_connect(DB_HOST, DB_USER, 'mariadb', '', DB_PORT);
-    }
-    
-    if ($tmpConn) {
-        // Attempt to auto-create database if possible
-        @mysqli_query($tmpConn, "CREATE DATABASE IF NOT EXISTS `" . DB_NAME . "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-        @mysqli_close($tmpConn);
-        // Retry connect
-        $connect = @mysqli_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT);
-        if (!$connect) {
-            $connect = @mysqli_connect(DB_HOST, DB_USER, '', DB_NAME, DB_PORT);
-        }
-    }
-}
-
 // Automatic Cloud Schema Migration: If connected, check if tables exist; if not, auto-import database.sql
 if ($connect) {
     $tblCheck = @mysqli_query($connect, "SHOW TABLES LIKE 'undergraduate'");
@@ -62,10 +58,8 @@ if ($connect) {
         $sqlPath = __DIR__ . '/../database.sql';
         if (file_exists($sqlPath)) {
             $sqlContent = file_get_contents($sqlPath);
-            // Remove comments and execute multi-query
             if (!empty($sqlContent)) {
                 @mysqli_multi_query($connect, $sqlContent);
-                // Flush multi-query results to prevent Commands out of sync errors
                 while (@mysqli_next_result($connect)) {
                     if ($res = @mysqli_store_result($connect)) {
                         @mysqli_free_result($res);
@@ -99,6 +93,7 @@ function get_pdo() {
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES   => false,
+            PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => false,
         ];
         
         $passwords = [DB_PASS, '', 'mariadb', 'root'];
