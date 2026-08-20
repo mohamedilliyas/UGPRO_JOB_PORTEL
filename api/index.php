@@ -17,6 +17,13 @@ if (empty($path) || $path === 'index.php') {
 // Map to physical file in root or subdirectories
 $targetFile = __DIR__ . '/../' . $path;
 
+// Handle directories (e.g. /admin -> /admin/index.php)
+if (is_dir($targetFile)) {
+    if (file_exists($targetFile . '/index.php')) {
+        $targetFile .= '/index.php';
+    }
+}
+
 // If request is e.g. /jobs -> check jobs.php
 if (!file_exists($targetFile) && file_exists($targetFile . '.php')) {
     $targetFile .= '.php';
@@ -25,6 +32,8 @@ if (!file_exists($targetFile) && file_exists($targetFile . '.php')) {
 if (file_exists($targetFile) && is_file($targetFile)) {
     // If it's a PHP file, execute it
     if (pathinfo($targetFile, PATHINFO_EXTENSION) === 'php') {
+        $_SERVER['SCRIPT_FILENAME'] = realpath($targetFile);
+        $_SERVER['SCRIPT_NAME'] = '/' . ltrim($path, '/');
         require $targetFile;
         exit();
     }
@@ -48,5 +57,5 @@ if (file_exists($targetFile) && is_file($targetFile)) {
     exit();
 }
 
-// Fallback to 404 or index
+// Fallback to index.php
 require __DIR__ . '/../index.php';

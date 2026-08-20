@@ -26,14 +26,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($result->num_rows === 1) {
                 $row = $result->fetch_assoc();
                 if (password_verify($password, $row['password'])) {
-                    $_SESSION['user_id'] = $row['id'];
-                    $_SESSION['user_name'] = $row['username'];
-                    $_SESSION['user_email'] = $row['email'];
-                    $_SESSION['user_role'] = 'admin';
-                    $_SESSION['user_avatar'] = 'images/logo.png';
+                    // Set complete user session with stateless signed cookie
+                    set_user_session($row['id'], 'admin', $row['username'], $row['email'], 'images/logo.png');
 
                     set_flash('success', "Welcome to the Admin Portal, " . htmlspecialchars($row['username']) . "!");
-                    header("Location: index.php");
+                    header("Location: " . BASE_URL . "admin/index.php");
                     exit();
                 } else {
                     $error = "Invalid administrator credentials.";

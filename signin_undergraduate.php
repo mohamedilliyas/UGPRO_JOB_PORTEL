@@ -29,17 +29,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($row['status'] === 'banned') {
                     $error = "Your student account has been suspended. Please contact university career guidance.";
                 } elseif (password_verify($password, $row['password'])) {
-                    // Set complete user session
-                    $_SESSION['user_id'] = $row['id'];
-                    $_SESSION['user_name'] = $row['full_name'];
-                    $_SESSION['user_email'] = $row['email'];
-                    $_SESSION['user_role'] = 'student';
-                    $_SESSION['user_avatar'] = !empty($row['profile_image']) ? $row['profile_image'] : 'images/fl-3.png';
-                    $_SESSION['user_course'] = $row['course'];
-
-                    // Backward compatibility session keys
-                    $_SESSION['fullname'] = $row['full_name'];
-                    $_SESSION['course'] = $row['course'];
+                    // Set complete user session with stateless signed cookie
+                    set_user_session(
+                        $row['id'],
+                        'student',
+                        $row['full_name'],
+                        $row['email'],
+                        !empty($row['profile_image']) ? $row['profile_image'] : 'images/fl-3.png',
+                        $row['course'] ?? ''
+                    );
 
                     set_flash('success', "Welcome back, " . htmlspecialchars($row['full_name']) . "!");
                     

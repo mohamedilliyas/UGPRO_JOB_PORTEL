@@ -74,16 +74,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 if ($stmt->execute()) {
                     $newId = $stmt->insert_id;
-                    // Auto login
-                    $_SESSION['user_id'] = $newId;
-                    $_SESSION['user_name'] = $fullName;
-                    $_SESSION['user_email'] = $email;
-                    $_SESSION['user_role'] = 'student';
-                    $_SESSION['user_avatar'] = $profileImagePath;
-                    $_SESSION['user_course'] = $course;
+                    // Auto login with stateless signed cookie
+                    set_user_session($newId, 'student', $fullName, $email, $profileImagePath, $course);
 
                     set_flash('success', 'Registration successful! Welcome to your UgPro Career Hub.');
-                    header("Location: profile_undergraduate.php");
+                    header("Location: " . BASE_URL . "profile_undergraduate.php");
                     exit();
                 } else {
                     $errors[] = "Database error: " . $connect->error;

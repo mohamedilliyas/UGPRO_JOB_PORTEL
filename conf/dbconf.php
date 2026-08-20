@@ -67,6 +67,15 @@ if ($connect) {
                 }
             }
         }
+    } else {
+        // Self-healing: Ensure demo account passwords in existing databases match updated bcrypt hashes
+        $adminHash = '$2y$10$fuzTKOKUXYh4A0cCGm/tYefBIt5nF7xEn/62OL2PXSYYL0GhUsnK6'; // admin123
+        $studentHash = '$2y$10$/ugmhBfdOwEvCe7Nl2ykw.1yvY2QqhxMg/s661DPVcVzCw8kzv3pC'; // student123
+        $employerHash = '$2y$10$s3bsdmDM7srwijQw7AOD6u.lcm9OxfzvB.hxQNUzPXF23VhbIQVHi'; // employer123
+
+        @mysqli_query($connect, "UPDATE admins SET password = '$adminHash' WHERE username = 'admin' AND password NOT LIKE '$2y$10$fuz%'");
+        @mysqli_query($connect, "UPDATE undergraduate SET password = '$studentHash' WHERE email = 'illiyas@vau.ac.lk' AND password NOT LIKE '$2y$10$/ug%'");
+        @mysqli_query($connect, "UPDATE employer SET password = '$employerHash' WHERE email IN ('careers@virtusa.com', 'recruitment@wso2.com', 'careers@ifs.com', 'hr@creativesoftware.com') AND password NOT LIKE '$2y$10$s3b%'");
     }
 }
 

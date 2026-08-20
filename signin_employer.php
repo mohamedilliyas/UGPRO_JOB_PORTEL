@@ -29,19 +29,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($row['status'] === 'suspended') {
                     $error = "This company account is currently suspended. Please contact portal administration.";
                 } elseif (password_verify($password, $row['password'])) {
-                    // Set complete user session
-                    $_SESSION['user_id'] = $row['id'];
-                    $_SESSION['user_name'] = $row['company_name'];
-                    $_SESSION['user_email'] = $row['email'];
-                    $_SESSION['user_role'] = 'employer';
-                    $_SESSION['user_avatar'] = !empty($row['company_logo']) ? $row['company_logo'] : 'images/google.png';
+                    // Set complete user session with stateless signed cookie
+                    set_user_session(
+                        $row['id'],
+                        'employer',
+                        $row['company_name'],
+                        $row['email'],
+                        !empty($row['company_logo']) ? $row['company_logo'] : 'images/google.png'
+                    );
 
-                    // Backward compatibility
+                    // Backward compatibility key
                     $_SESSION['employer_id'] = $row['id'];
                     $_SESSION['company_name'] = $row['company_name'];
 
                     set_flash('success', "Welcome back, " . htmlspecialchars($row['company_name']) . "!");
-                    header("Location: profile_employer.php");
+                    header("Location: " . BASE_URL . "profile_employer.php");
                     exit();
                 } else {
                     $error = "Incorrect password. Please try again.";

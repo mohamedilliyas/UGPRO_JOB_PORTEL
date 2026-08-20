@@ -53,18 +53,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 if ($stmt->execute()) {
                     $newId = $stmt->insert_id;
-                    $_SESSION['user_id'] = $newId;
-                    $_SESSION['user_name'] = $companyName;
-                    $_SESSION['user_email'] = $email;
-                    $_SESSION['user_role'] = 'employer';
-                    $_SESSION['user_avatar'] = $logoPath;
+                    // Set complete user session with stateless signed cookie
+                    set_user_session(
+                        $newId,
+                        'employer',
+                        $companyName,
+                        $email,
+                        !empty($logoPath) ? $logoPath : 'images/google.png'
+                    );
 
                     // Backward compatibility session keys
                     $_SESSION['employer_id'] = $newId;
                     $_SESSION['company_name'] = $companyName;
 
                     set_flash('success', "Welcome to UgPro! Your company account has been created.");
-                    header("Location: profile_employer.php");
+                    header("Location: " . BASE_URL . "profile_employer.php");
                     exit();
                 } else {
                     $errors[] = "Registration failed: " . $connect->error;
