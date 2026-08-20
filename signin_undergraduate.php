@@ -1,142 +1,137 @@
 <?php
-require_once 'conf/dbconf.php';
-session_start();
+/**
+ * Undergraduate Sign In - UgPro
+ */
+require_once __DIR__ . '/includes/auth.php';
 
-if (isset($_POST['login'])) {
-    $email = filter_var($_POST["email"], FILTER_VALIDATE_EMAIL);
-    $password = $_POST["password"];
-    
-    if ($email && $password) {
-        // Prepare the SQL query to fetch user details
-        $stmt = $connect->prepare("SELECT full_name, email, password, course, skills, projects FROM undergraduate WHERE email = ?");
-        $stmt->bind_param("s", $email);
-        $stmt->execute();
-        $result = $stmt->get_result();
-
-        if ($result->num_rows > 0) {
-            $row = $result->fetch_assoc();
-            $hashedPassword = $row["password"]; // Fetch the hashed password
-
-            // Verify the password
-            if (password_verify($password, $hashedPassword)) {
-                $_SESSION["fullname"] = $row["full_name"];
-                $_SESSION["course"] = $row["course"];
-                $_SESSION["skills"] = $row["skills"];
-                $_SESSION["projects"] = $row["projects"];
-                header("Location: profile_undergraduate.php");
-                exit(); // Ensure no further code runs after redirection
-            } else {
-                $error = "Invalid username or password.";
-            }
-        } else {
-            $error = "Invalid username or password.";
-        }
-
-        $stmt->close();
-    } else {
-        $error = "Please enter a valid email and password.";
-    }
-
-    $connect->close(); // Close the database connection
+// Redirect if already logged in
+if (is_student()) {
+    header("Location: profile_undergraduate.php");
+    exit();
 }
+
+$error = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $email = filter_var(trim($_POST['email'] ?? ''), FILTER_VALIDATE_EMAIL);
+    $password = $_POST['password'] ?? '';
+
+    if ($email && $password) {
+        if ($connect) {
+            $stmt = $connect->prepare("SELECT id, full_name, email, password, course, profile_image, status FROM undergraduate WHERE email = ?");
+            $stmt->bind_param("s", $email);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            if ($result->num_rows === 1) {
+                $row = $result->fetch_assoc();
+                
+                if ($row['status'] === 'banned') {
+                    $error = "Your student account has been suspended. Please contact university career guidance.";
+                } elseif (password_verify($password, $row['password'])) {
+                    // Set complete user session
+                    $_SESSION['user_id'] = $row['id'];
+                    $_SESSION['user_name'] = $row['full_name'];
+                    $_SESSION['user_email'] = $row['email'];
+                    $_SESSION['user_role'] = 'student';
+                    $_SESSION['user_avatar'] = !empty($row['profile_image']) ? $row['profile_image'] : 'images/fl-3.png';
+                    $_SESSION['user_course'] = $row['course'];
+
+                    // Backward compatibility session keys
+                    $_SESSION['fullname'] = $row['full_name'];
+                    $_SESSION['course'] = $row['course'];
+
+                    set_flash('success', "Welcome back, " . htmlspecialchars($row['full_name']) . "!");
+                    
+                    // Redirect to intended page or profile
+                    $redirect = $_GET['redirect'] ?? 'profile_undergraduate.php';
+                    header("Location: " . BASE_URL . $redirect);
+                    exit();
+                } else {
+                    $error = "Incorrect password. Please try again.";
+                }
+            } else {
+                $error = "No student account found with this email.";
+            }
+            $stmt->close();
+        } else {
+            $error = "Database connection error.";
+        }
+    } else {
+        $error = "Please provide both a valid email and password.";
+    }
+}
+
+$pageTitle = "Undergraduate Sign In - UgPro";
+require_once __DIR__ . '/includes/header.php';
+require_once __DIR__ . '/includes/navbar.php';
 ?>
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UgPro Undergraduate Sign In</title>
-    <style>
-        body {
-            font-family: "Poppins", sans-serif;
-            margin: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: #1f4a40;
-        }
-        .container {
-            width: 50%;
-            max-width: 500px;
-            padding: 40px;
-            background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-        }
-        .container h2 {
-            text-align: center;
-            margin: 0;
-            font-size: 2em;
-            margin-bottom: 20px;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        .form-group label {
-            display: block;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-        .form-group input[type="email"],
-        .form-group input[type="password"] {
-            width: 100%;
-            padding: 10px;
-            font-size: 1em;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-        .signin-button {
-            width: 100%;
-            padding: 12px;
-            font-size: 1.2em;
-            background-color: #0073e6;
-            color: white;
-            border: none;
-            border-radius: 50px;
-            cursor: pointer;
-            margin-top: 10px;
-        }
-        .signup-link {
-            text-align: center;
-            margin-top: 20px;
-            font-size: 0.9em;
-        }
-        .signup-link a {
-            color: #57bef2;
-            text-decoration: none;
-        }
-    </style>
-</head>
-<body>
-
-<div class="container">
-    <h2>Sign in as an Undergraduate</h2>
-
-    <form method="POST" action="signin_undergraduate.php">
-        <div class="form-group">
-            <label for="email">Email Address</label>
-            <input type="email" id="email" name="email" placeholder="Enter your email address" required>
+<div class="auth-page-wrap">
+    <div class="auth-card row g-0" style="max-width: 840px;">
+        <div class="col-lg-5 auth-card-sidebar d-none d-lg-flex">
+            <div>
+                <a href="<?= BASE_URL ?>index.php" class="text-white text-decoration-none">
+                    <img src="<?= BASE_URL ?>images/logo.png" width="70" height="70" alt="Logo" class="mb-3">
+                    <h2>UgPro</h2>
+                </a>
+                <p>Welcome back! Sign in to view job recommendations, track applications, and engage with employers.</p>
+            </div>
+            
+            <div class="auth-sidebar-icon">
+                <i class="bi bi-person-workspace"></i>
+            </div>
+            
+            <div>
+                <p class="small mb-0">New to UgPro?</p>
+                <a href="<?= BASE_URL ?>signup_undergraduate.php" class="btn btn-outline-light btn-sm rounded-pill px-4 mt-2">Create Account</a>
+            </div>
         </div>
-        <div class="form-group">
-            <label for="password">Password</label>
-            <input type="password" id="password" name="password" placeholder="Enter your password" required>
+
+        <div class="col-lg-7 auth-card-body">
+            <h2 class="auth-form-title">Student Sign In</h2>
+            <p class="text-muted small mb-4">Access your university career dashboard and job applications</p>
+
+            <?php if (!empty($error)): ?>
+                <div class="alert alert-danger shadow-sm rounded-3 py-2">
+                    <i class="bi bi-exclamation-circle me-1"></i> <?= htmlspecialchars($error) ?>
+                </div>
+            <?php endif; ?>
+
+            <form method="POST" action="signin_undergraduate.php<?= isset($_GET['redirect']) ? '?redirect=' . urlencode($_GET['redirect']) : '' ?>">
+                <div class="mb-3">
+                    <label for="email" class="form-label">Email Address</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-envelope text-muted"></i></span>
+                        <input type="email" class="form-control border-start-0 ps-0" id="email" name="email" placeholder="name@vau.ac.lk" value="<?= htmlspecialchars($_POST['email'] ?? '') ?>" required>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <label for="password" class="form-label">Password</label>
+                        <a href="contact.php" class="small text-muted text-decoration-none">Need help?</a>
+                    </div>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-lock text-muted"></i></span>
+                        <input type="password" class="form-control border-start-0 ps-0" id="password" name="password" placeholder="Enter your password" required>
+                    </div>
+                </div>
+
+                <div class="mb-4 form-check">
+                    <input type="checkbox" class="form-check-input" id="rememberMe">
+                    <label class="form-check-label small text-muted" for="rememberMe">Keep me signed in</label>
+                </div>
+
+                <button type="submit" class="btn-primary-ugpro py-3">Sign In as Undergraduate</button>
+            </form>
+
+            <div class="mt-4 pt-3 border-top text-center">
+                <p class="text-muted small mb-2">Are you an employer or recruiter?</p>
+                <a href="<?= BASE_URL ?>signin_employer.php" class="btn btn-outline-secondary btn-sm rounded-pill px-3"><i class="bi bi-building me-1"></i> Switch to Employer Sign In</a>
+            </div>
         </div>
-        <button type="submit" class="signin-button" name='login'>Sign in</button>
-    </form>
-
-    <?php
-    // Display any error message
-    if (isset($error)) {
-        echo "<p style='color: red; text-align: center;'>$error</p>";
-    }
-    ?>
-
-    <div class="signup-link">
-        <p>Don't have an account? <a href="signup_undergraduate.php">Sign up as an Undergraduate</a></p>
     </div>
 </div>
 
-</body>
-</html>
+<?php require_once __DIR__ . '/includes/footer.php'; ?>

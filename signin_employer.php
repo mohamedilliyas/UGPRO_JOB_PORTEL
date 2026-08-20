@@ -1,206 +1,133 @@
 <?php
-    // Improved error handling
-    error_reporting(E_ALL);
-    ini_set('display_errors', 1);
+/**
+ * Employer Sign In - UgPro
+ */
+require_once __DIR__ . '/includes/auth.php';
 
-    // Database connection
-    define('SERVERNAME', '127.0.0.1');  // Or 'localhost'
-    define('USERNAME', 'root');
-    define('PASSWORD', 'mariadb');
-    define('DBNAME', 'vavuniyauniversity');
+// Redirect if already logged in
+if (is_employer()) {
+    header("Location: profile_employer.php");
+    exit();
+}
 
-    // Create database connection
-    $connect = mysqli_connect(SERVERNAME, USERNAME, PASSWORD, DBNAME);
+$error = '';
 
-    // Check connection
-    if (!$connect) {
-        die("Connection failed: " . mysqli_connect_error());
-    }
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $email = filter_var(trim($_POST['email'] ?? ''), FILTER_VALIDATE_EMAIL);
+    $password = $_POST['password'] ?? '';
 
-    // Check if the form is submitted
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        // Collect form data
-        $email = filter_var(trim($_POST['email']), FILTER_VALIDATE_EMAIL);
-        $password = $_POST['password'];
-
-        if ($email) {
-            // Prepare the SQL query to fetch employer data
-            $stmt = $connect->prepare("SELECT * FROM employer WHERE email = ?");
+    if ($email && $password) {
+        if ($connect) {
+            $stmt = $connect->prepare("SELECT id, company_name, email, password, company_logo, status FROM employer WHERE email = ?");
             $stmt->bind_param("s", $email);
             $stmt->execute();
             $result = $stmt->get_result();
 
-            if ($result->num_rows == 1) {
-                // Employer exists, verify the password
+            if ($result->num_rows === 1) {
                 $row = $result->fetch_assoc();
-                if (password_verify($password, $row['password'])) {
-                    // Password is correct, start the session and redirect to the employer dashboard
-                    session_start();
+                
+                if ($row['status'] === 'suspended') {
+                    $error = "This company account is currently suspended. Please contact portal administration.";
+                } elseif (password_verify($password, $row['password'])) {
+                    // Set complete user session
+                    $_SESSION['user_id'] = $row['id'];
+                    $_SESSION['user_name'] = $row['company_name'];
+                    $_SESSION['user_email'] = $row['email'];
+                    $_SESSION['user_role'] = 'employer';
+                    $_SESSION['user_avatar'] = !empty($row['company_logo']) ? $row['company_logo'] : 'images/google.png';
+
+                    // Backward compatibility
                     $_SESSION['employer_id'] = $row['id'];
                     $_SESSION['company_name'] = $row['company_name'];
-                    echo "<script>alert('Login successful! Redirecting to your dashboard.');</script>";
-                    echo "<script>window.location.href = 'profile_employer.php';</script>";
+
+                    set_flash('success', "Welcome back, " . htmlspecialchars($row['company_name']) . "!");
+                    header("Location: profile_employer.php");
                     exit();
                 } else {
-                    // Incorrect password
-                    echo "<script>alert('Incorrect password. Please try again.');</script>";
+                    $error = "Incorrect password. Please try again.";
                 }
             } else {
-                // Employer does not exist
-                echo "<script>alert('No account found with this email. Please sign up.');</script>";
+                $error = "No employer account found with this email.";
             }
             $stmt->close();
         } else {
-            echo "<script>alert('Invalid email format.');</script>";
+            $error = "Database connection error.";
         }
+    } else {
+        $error = "Please provide both your company email and password.";
     }
+}
 
-    $connect->close();
+$pageTitle = "Employer Sign In - UgPro";
+require_once __DIR__ . '/includes/header.php';
+require_once __DIR__ . '/includes/navbar.php';
 ?>
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UgPro - Employer Sign In</title>
-    <!-- Bootstrap and Bootstrap Icons CDN -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
-    <style>
-        /* Add your styles here */
-        body {
-            font-family: "Poppins", sans-serif;
-            margin: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: #fafafa;
-        }
-        .container {
-            display: flex;
-            background-color: white;
-            width: 80%;
-            max-width: 900px;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            overflow: hidden;
-        }
-        .left {
-            background-color: #1f4a40;
-            color: white;
-            width: 40%;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-            text-align: center;
-        }
-        .left h1 {
-            font-size: 3em;
-            margin: 0;
-        }
-        .left p {
-            font-size: 1.2em;
-            margin-top: 10px;
-        }
-        .right {
-            width: 60%;
-            padding: 40px;
-        }
-        .right h2 {
-            font-size: 2em;
-            margin-bottom: 20px;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        .form-group label {
-            display: block;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-        .form-group input {
-            width: 100%;
-            padding: 10px;
-            font-size: 1em;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-        .signin-button {
-            width: auto;
-            padding: 12px 40px;
-            font-size: 1.2em;
-            background-color: #0073e6;
-            color: white;
-            border: none;
-            border-radius: 50px;
-            cursor: pointer;
-            margin-top: 10px;
-            display: block;
-            margin-left: auto;
-            margin-right: auto;
-        }
-
-        .signup-link {
-            text-align: center;
-            margin-top: 20px;
-            font-size: 0.9em;
-        }
-        .signup-link a {
-            color: #57bef2;
-            text-decoration: none;
-        }
-        .ugpro-logo {
-            font-size: 40px;
-        }
-
-        @media (max-width: 1024px) {
-            .container {
-                flex-direction: column;
-                justify-content: center;
-                align-items: center;
-            }
-            .left {
-                width: 100%;
-                padding: 20px 0;
-            }
-            .right {
-                padding: 20px;
-                text-align: center;
-            }
-        }
-    </style>
-</head>
-<body>
-
-<div class="container">
-    <div class="left">
-        <a class="navbar-brand" href="index.php">
-            <img src="images/logo.png" width="200" height="200" alt="UgPro Logo">      
-        </a>
-        <strong class="ugpro-logo">UgPro</strong>
-    </div>
-    <div class="right">
-        <h2>Sign in to UgPro as Employer</h2>
-        <form method="POST">
-            <div class="form-group">
-                <label for="email">Email Address</label>
-                <input type="email" id="email" name="email" placeholder="Enter your email address" required>
+<div class="auth-page-wrap">
+    <div class="auth-card row g-0" style="max-width: 840px;">
+        <div class="col-lg-5 auth-card-sidebar d-none d-lg-flex">
+            <div>
+                <a href="<?= BASE_URL ?>index.php" class="text-white text-decoration-none">
+                    <img src="<?= BASE_URL ?>images/logo.png" width="70" height="70" alt="Logo" class="mb-3">
+                    <h2>UgPro</h2>
+                </a>
+                <p>Recruit the brightest university undergraduates, review live applications, and manage hiring campaigns.</p>
             </div>
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" placeholder="Enter your password" required>
+            
+            <div class="auth-sidebar-icon">
+                <i class="bi bi-briefcase"></i>
             </div>
-            <button type="submit" class="signin-button">Sign In</button>
-        </form>
+            
+            <div>
+                <p class="small mb-0">New company to UgPro?</p>
+                <a href="<?= BASE_URL ?>signup_employer.php" class="btn btn-outline-light btn-sm rounded-pill px-4 mt-2">Register Company</a>
+            </div>
+        </div>
 
-        <div class="signup-link">
-            <p>Don't have an account? <a href="signup_employer.php">Sign up</a></p>
+        <div class="col-lg-7 auth-card-body">
+            <h2 class="auth-form-title">Employer Sign In</h2>
+            <p class="text-muted small mb-4">Access your hiring dashboard and post new vacancies</p>
+
+            <?php if (!empty($error)): ?>
+                <div class="alert alert-danger shadow-sm rounded-3 py-2">
+                    <i class="bi bi-exclamation-circle me-1"></i> <?= htmlspecialchars($error) ?>
+                </div>
+            <?php endif; ?>
+
+            <form method="POST" action="signin_employer.php">
+                <div class="mb-3">
+                    <label for="email" class="form-label">Company Email</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-building text-muted"></i></span>
+                        <input type="email" class="form-control border-start-0 ps-0" id="email" name="email" placeholder="recruitment@company.com" value="<?= htmlspecialchars($_POST['email'] ?? '') ?>" required>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <label for="password" class="form-label">Password</label>
+                        <a href="contact.php" class="small text-muted text-decoration-none">Forgot password?</a>
+                    </div>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-lock text-muted"></i></span>
+                        <input type="password" class="form-control border-start-0 ps-0" id="password" name="password" placeholder="Enter your password" required>
+                    </div>
+                </div>
+
+                <div class="mb-4 form-check">
+                    <input type="checkbox" class="form-check-input" id="rememberEmployer">
+                    <label class="form-check-label small text-muted" for="rememberEmployer">Remember this company account</label>
+                </div>
+
+                <button type="submit" class="btn-primary-ugpro py-3">Sign In to Dashboard</button>
+            </form>
+
+            <div class="mt-4 pt-3 border-top text-center">
+                <p class="text-muted small mb-2">Are you an undergraduate student looking for jobs?</p>
+                <a href="<?= BASE_URL ?>signin_undergraduate.php" class="btn btn-outline-secondary btn-sm rounded-pill px-3"><i class="bi bi-mortarboard me-1"></i> Switch to Student Sign In</a>
+            </div>
         </div>
     </div>
 </div>
 
-</body>
-</html>
+<?php require_once __DIR__ . '/includes/footer.php'; ?>

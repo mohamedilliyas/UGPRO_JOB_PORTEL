@@ -1,311 +1,233 @@
 <?php
-// Improved error handling
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+/**
+ * Undergraduate Sign Up - UgPro
+ */
+require_once __DIR__ . '/includes/auth.php';
 
-// Database connection constants
-define('SERVERNAME', '127.0.0.1');
-define('USERNAME', 'root');
-define('PASSWORD', 'mariadb');
-define('DBNAME', 'vavuniyauniversity');
-
-// Create database connection
-$connect = mysqli_connect(SERVERNAME, USERNAME, PASSWORD, DBNAME);
-
-// Check connection
-if (!$connect) {
-    die("Connection failed: " . mysqli_connect_error());
+// Redirect if already logged in
+if (is_student()) {
+    header("Location: profile_undergraduate.php");
+    exit();
 }
 
-// Check if the form is submitted
+$errors = [];
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Sanitize and validate form data
-    $fullName = filter_var(trim($_POST['fullName']), FILTER_SANITIZE_STRING);
-    $email = filter_var(trim($_POST['email']), FILTER_VALIDATE_EMAIL);
-    $password = $_POST['password'];
-    $course = filter_var(trim($_POST['course']), FILTER_SANITIZE_STRING);
-    $skills = filter_var(trim($_POST['skills']), FILTER_SANITIZE_STRING);
-    $projects = filter_var(trim($_POST['projects']), FILTER_SANITIZE_STRING);
-    
-    // Handle image upload
-    $profileImage = '';
-    if (isset($_FILES['profileImage']) && $_FILES['profileImage']['error'] === UPLOAD_ERR_OK) {
-        $imageName = $_FILES['profileImage']['name'];
-        $imageTmpName = $_FILES['profileImage']['tmp_name'];
-        $imageSize = $_FILES['profileImage']['size'];
-        $imageExt = strtolower(pathinfo($imageName, PATHINFO_EXTENSION));
-        $allowedExtensions = ['jpg', 'jpeg', 'png'];
-        
-        if (in_array($imageExt, $allowedExtensions) && $imageSize <= 5000000) { // Max size 5MB
-            $newImageName = uniqid('', true) . '.' . $imageExt;
-            $imagePath = 'uploads/profile_images/' . $newImageName;
-            if (!file_exists('uploads/profile_images/')) {
-                mkdir('uploads/profile_images/', 0777, true);
-            }
-            move_uploaded_file($imageTmpName, $imagePath);
-            $profileImage = $imagePath;
+    $fullName = clean_input($_POST['fullName'] ?? '');
+    $email = filter_var(trim($_POST['email'] ?? ''), FILTER_VALIDATE_EMAIL);
+    $password = $_POST['password'] ?? '';
+    $regNo = clean_input($_POST['regNo'] ?? '');
+    $faculty = clean_input($_POST['faculty'] ?? 'Faculty of Applied Science');
+    $course = clean_input($_POST['course'] ?? '');
+    $gradYear = intval($_POST['gradYear'] ?? 2025);
+    $phone = clean_input($_POST['phone'] ?? '');
+    $skills = clean_input($_POST['skills'] ?? '');
+    $projects = clean_input($_POST['projects'] ?? '');
+    $bio = clean_input($_POST['bio'] ?? '');
+    $github = clean_input($_POST['github'] ?? '');
+    $linkedin = clean_input($_POST['linkedin'] ?? '');
+    $portfolio = clean_input($_POST['portfolio'] ?? '');
+
+    // Validation
+    if (empty($fullName)) $errors[] = "Full name is required.";
+    if (!$email) $errors[] = "A valid university or personal email is required.";
+    if (strlen($password) < 6) $errors[] = "Password must be at least 6 characters long.";
+    if (empty($course)) $errors[] = "Degree / Course name is required.";
+
+    // Handle Profile Image Upload
+    $profileImagePath = 'images/fl-3.png'; // Default
+    if (isset($_FILES['profile_image']) && $_FILES['profile_image']['error'] === UPLOAD_ERR_OK) {
+        $imgUpload = handle_file_upload($_FILES['profile_image'], PROFILE_UPLOAD_DIR, ['jpg', 'jpeg', 'png', 'webp'], 5242880);
+        if ($imgUpload['success']) {
+            $profileImagePath = $imgUpload['filePath'];
         } else {
-            echo "<script>alert('Invalid image type or size. Only JPG, JPEG, PNG allowed and max size 5MB.');</script>";
+            $errors[] = "Profile Image: " . $imgUpload['error'];
         }
     }
-    
-    // Validate required fields
-    if (empty($fullName) || empty($email) || empty($password) || empty($course) || empty($skills) || empty($projects)) {
-        echo "<script>alert('All fields are required. Please fill out the form completely.');</script>";
-    } elseif (!$email) {
-        echo "<script>alert('Invalid email format.');</script>";
-    } else {
-        // Hash the password
-        $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
 
-        // Prepare and bind
-        $stmt = $connect->prepare("INSERT INTO undergraduate (full_name, email, password, course, skills, projects, profile_image) VALUES (?, ?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("sssssss", $fullName, $email, $hashedPassword, $course, $skills, $projects, $profileImage);
-
-        // Execute the statement
-        if ($stmt->execute()) {
-            echo "<script>alert('Sign-up successful! Redirecting to login page.');</script>";
-            echo "<script>window.location.href = 'signin_undergraduate.php';</script>";
-            exit();
+    // Handle Resume PDF Upload
+    $resumePath = null;
+    if (isset($_FILES['resume_file']) && $_FILES['resume_file']['error'] === UPLOAD_ERR_OK) {
+        $resumeUpload = handle_file_upload($_FILES['resume_file'], RESUME_UPLOAD_DIR, ['pdf'], 10485760);
+        if ($resumeUpload['success']) {
+            $resumePath = $resumeUpload['filePath'];
         } else {
-            echo "<script>alert('Error: Unable to register. Please try again later.');</script>";
+            $errors[] = "Resume: " . $resumeUpload['error'];
         }
+    }
 
-        // Close the statement
-        $stmt->close();
+    // If no validation errors, proceed to database
+    if (empty($errors)) {
+        if ($connect) {
+            // Check if email already registered
+            $checkStmt = $connect->prepare("SELECT id FROM undergraduate WHERE email = ?");
+            $checkStmt->bind_param("s", $email);
+            $checkStmt->execute();
+            $checkResult = $checkStmt->get_result();
+
+            if ($checkResult->num_rows > 0) {
+                $errors[] = "This email is already registered. Please sign in instead.";
+            } else {
+                $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
+                $stmt = $connect->prepare("INSERT INTO undergraduate (full_name, email, password, reg_no, faculty, course, graduation_year, phone, skills, projects, bio, github, linkedin, portfolio_url, profile_image, resume_file) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->bind_param("ssssssisssssssss", $fullName, $email, $hashedPassword, $regNo, $faculty, $course, $gradYear, $phone, $skills, $projects, $bio, $github, $linkedin, $portfolio, $profileImagePath, $resumePath);
+
+                if ($stmt->execute()) {
+                    $newId = $stmt->insert_id;
+                    // Auto login
+                    $_SESSION['user_id'] = $newId;
+                    $_SESSION['user_name'] = $fullName;
+                    $_SESSION['user_email'] = $email;
+                    $_SESSION['user_role'] = 'student';
+                    $_SESSION['user_avatar'] = $profileImagePath;
+                    $_SESSION['user_course'] = $course;
+
+                    set_flash('success', 'Registration successful! Welcome to your UgPro Career Hub.');
+                    header("Location: profile_undergraduate.php");
+                    exit();
+                } else {
+                    $errors[] = "Database error: " . $connect->error;
+                }
+                $stmt->close();
+            }
+            $checkStmt->close();
+        } else {
+            $errors[] = "Unable to connect to database. Please check configuration.";
+        }
     }
 }
+
+$pageTitle = "Undergraduate Sign Up - UgPro";
+require_once __DIR__ . '/includes/header.php';
+require_once __DIR__ . '/includes/navbar.php';
 ?>
 
-
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UgPro - Sign Up</title>
-    <!-- Bootstrap and Bootstrap Icons CDN -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
-    <style>
-        body {
-            font-family: "Poppins", sans-serif;
-            margin: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: #fafafa;
-        }
-        .container {
-            display: flex;
-            background-color: white;
-            width: 80%;
-            max-width: 900px;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            overflow: hidden;
-        }
-        .left {
-            background-color: #1f4a40;
-            color: white;
-            width: 40%;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-            text-align: center;
-        }
-        .left h1 {
-            font-size: 2.5em;
-            margin: 0;
-        }
-        .left p {
-            font-size: 1em;
-            margin-top: 10px;
-        }
-        .right {
-            width: 60%;
-            padding: 30px;
-        }
-        .right h2 {
-            font-size: 1.8em;
-            margin-bottom: 20px;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        .form-group label {
-            display: block;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-        .form-group input,
-        .form-group textarea {
-            width: 100%;
-            padding: 10px;
-            font-size: 1em;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-        .signup-button {
-            width: auto;
-            padding: 10px 30px;
-            font-size: 1em;
-            background-color: #0073e6;
-            color: white;
-            border: none;
-            border-radius: 50px;
-            cursor: pointer;
-            margin-top: 10px;
-            display: block;
-            margin-left: auto;
-            margin-right: auto;
-        }
-
-        .social-buttons {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 20px;
-        }
-        .social-buttons button {
-            flex: 1;
-            padding: 10px;
-            font-size: 1em;
-            margin: 0 5px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            color: white;
-        }
-        .linkedin {
-            background-color: #0077b5;
-        }
-        .google {
-            background-color: #db4437;
-        }
-        .signin-link {
-            text-align: center;
-            margin-top: 20px;
-            font-size: 0.9em;
-        }
-        .signin-link a {
-            color: #57bef2;
-            text-decoration: none;
-        }
-        .ugpro-logo {
-            font-size: 30px;
-        }
-        .divider {
-            margin: 20px 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .divider span {
-            background-color: white;
-            padding: 0 10px;
-            font-weight: bold;
-        }
-        .divider::before,
-        .divider::after {
-            content: "";
-            flex-grow: 1;
-            border-top: 2px solid #ccc;
-        }
-
-        @media (max-width: 1024px) {
-            .container {
-                flex-direction: column;
-                justify-content: center;
-                align-items: center;
-            }
-            .left {
-                width: 100%;
-                padding: 20px 0;
-            }
-            .right {
-                padding: 20px;
-                text-align: center;
-            }
-        }
-
-        @media (max-width: 768px) {
-            .container {
-                width: 90%;
-                max-width: none;
-            }
-            .right {
-                padding: 15px;
-            }
-            .signup-button {
-                padding: 10px 20px;
-            }
-            .form-group input, .form-group textarea {
-                font-size: 0.9em;
-            }
-        }
-    </style>
-</head>
-<body>
-
-<div class="container">
-    <div class="left">
-    <h2>Sign up to UgPro</h2>
-
-        <a class="navbar-brand" href="index.php">
-            <img src="images/logo.png" width="150" height="150" alt="UgPro Logo">      
-        </a>
-        <strong class="ugpro-logo">UgPro</strong>
-    </div>
-    <div class="right">
-      
-        <form method="POST" enctype="multipart/form-data">
-            <div class="form-group">
-                <label for="fullName">Full Name</label>
-                <input type="text" id="fullName" name="fullName" placeholder="Enter your full name" required>
-            </div>
-            <div class="form-group">
-                <label for="email">Email Address</label>
-                <input type="email" id="email" name="email" placeholder="Enter your email address" required>
-            </div>
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" placeholder="Create a password" required>
-            </div>
-            <div class="form-group">
-                <label for="course">Course</label>
-                <input type="text" id="course" name="course" placeholder="Enter your course" required>
-            </div>
-            <div class="form-group">
-                <label for="skills">Skills</label>
-                <textarea id="skills" name="skills" placeholder="Enter your skills" required></textarea>
-            </div>
-            <div class="form-group">
-                <label for="projects">Projects</label>
-                <textarea id="projects" name="projects" placeholder="Enter your projects" required></textarea>
+<div class="auth-page-wrap">
+    <div class="auth-card row g-0">
+        <div class="col-lg-4 auth-card-sidebar d-none d-lg-flex">
+            <div>
+                <a href="<?= BASE_URL ?>index.php" class="text-white text-decoration-none">
+                    <img src="<?= BASE_URL ?>images/logo.png" width="80" height="80" alt="Logo" class="mb-3">
+                    <h2>UgPro</h2>
+                </a>
+                <p>Empowering Vavuniya University undergraduates to launch successful careers with top industry partners.</p>
             </div>
             
-
-            <div class="form-group">
-                <label for="profile_image">Profile Image</label>
-                <input type="file" id="profile_image" name="profile_image" accept="image/*">
+            <div class="auth-sidebar-icon">
+                <i class="bi bi-mortarboard"></i>
             </div>
-            <button type="submit" class="signup-button">Sign Up</button>
-        </form>
-
-        <div class="divider"><span>Or</span></div>
-
-        <div class="social-buttons">
-            <button class="linkedin"><i class="bi bi-linkedin"></i> Sign up with LinkedIn</button>
-            <button class="google"><i class="bi bi-google"></i> Sign up with Google</button>
+            
+            <div>
+                <p class="small mb-0">Already registered?</p>
+                <a href="<?= BASE_URL ?>signin_undergraduate.php" class="btn btn-outline-light btn-sm rounded-pill px-4 mt-2">Sign In</a>
+            </div>
         </div>
 
-        <div class="signin-link">
-            <p>Already have an account? <a href="signin_undergraduate.php">Sign in</a></p>
+        <div class="col-lg-8 auth-card-body">
+            <h2 class="auth-form-title">Student Registration</h2>
+            <p class="text-muted small mb-4">Create your student career profile and connect with verified employers</p>
+
+            <?php if (!empty($errors)): ?>
+                <div class="alert alert-danger shadow-sm rounded-3">
+                    <ul class="mb-0 ps-3">
+                        <?php foreach ($errors as $err): ?>
+                            <li><?= htmlspecialchars($err) ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            <?php endif; ?>
+
+            <form method="POST" enctype="multipart/form-data" action="signup_undergraduate.php">
+                <div class="row g-3">
+                    <!-- Personal Info -->
+                    <div class="col-md-6">
+                        <label for="fullName" class="form-label">Full Name *</label>
+                        <input type="text" class="form-control" id="fullName" name="fullName" placeholder="e.g. Mohamed Illiyas" value="<?= htmlspecialchars($_POST['fullName'] ?? '') ?>" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="email" class="form-label">Email Address *</label>
+                        <input type="email" class="form-control" id="email" name="email" placeholder="name@vau.ac.lk or personal email" value="<?= htmlspecialchars($_POST['email'] ?? '') ?>" required>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="password" class="form-label">Create Password *</label>
+                        <input type="password" class="form-control" id="password" name="password" placeholder="Minimum 6 characters" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="phone" class="form-label">Contact Phone</label>
+                        <input type="tel" class="form-control" id="phone" name="phone" placeholder="+94 7X XXX XXXX" value="<?= htmlspecialchars($_POST['phone'] ?? '') ?>">
+                    </div>
+
+                    <!-- Academic Info -->
+                    <div class="col-md-6">
+                        <label for="regNo" class="form-label">Registration / Index No</label>
+                        <input type="text" class="form-control" id="regNo" name="regNo" placeholder="e.g. 2020/ICT/42" value="<?= htmlspecialchars($_POST['regNo'] ?? '') ?>">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="faculty" class="form-label">Faculty</label>
+                        <select class="form-select" id="faculty" name="faculty">
+                            <option value="Faculty of Applied Science">Faculty of Applied Science</option>
+                            <option value="Faculty of Business Studies">Faculty of Business Studies</option>
+                            <option value="Faculty of Technological Studies">Faculty of Technological Studies</option>
+                            <option value="Other Faculty / Institution">Other Faculty / Institution</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-8">
+                        <label for="course" class="form-label">Degree / Course *</label>
+                        <input type="text" class="form-control" id="course" name="course" placeholder="e.g. Information and Communication Technology (BICT)" value="<?= htmlspecialchars($_POST['course'] ?? '') ?>" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="gradYear" class="form-label">Graduation Year</label>
+                        <input type="number" class="form-control" id="gradYear" name="gradYear" min="2020" max="2030" value="<?= htmlspecialchars($_POST['gradYear'] ?? '2025') ?>">
+                    </div>
+
+                    <!-- Skills & Projects -->
+                    <div class="col-12">
+                        <label for="skills" class="form-label">Key Skills (Comma separated)</label>
+                        <input type="text" class="form-control" id="skills" name="skills" placeholder="e.g. PHP, JavaScript, React, MySQL, Python, UI/UX" value="<?= htmlspecialchars($_POST['skills'] ?? '') ?>">
+                    </div>
+
+                    <div class="col-12">
+                        <label for="projects" class="form-label">Featured Projects / Experience</label>
+                        <textarea class="form-control" id="projects" name="projects" rows="2" placeholder="Describe 1-2 major projects or extracurricular roles..."><?= htmlspecialchars($_POST['projects'] ?? '') ?></textarea>
+                    </div>
+
+                    <!-- Social / Links -->
+                    <div class="col-md-4">
+                        <label for="github" class="form-label">GitHub URL</label>
+                        <input type="url" class="form-control" id="github" name="github" placeholder="https://github.com/username" value="<?= htmlspecialchars($_POST['github'] ?? '') ?>">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="linkedin" class="form-label">LinkedIn URL</label>
+                        <input type="url" class="form-control" id="linkedin" name="linkedin" placeholder="https://linkedin.com/in/username" value="<?= htmlspecialchars($_POST['linkedin'] ?? '') ?>">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="portfolio" class="form-label">Portfolio / Web</label>
+                        <input type="url" class="form-control" id="portfolio" name="portfolio" placeholder="https://yourportfolio.com" value="<?= htmlspecialchars($_POST['portfolio'] ?? '') ?>">
+                    </div>
+
+                    <!-- File Uploads -->
+                    <div class="col-md-6">
+                        <label for="profile_image" class="form-label">Profile Photo (JPG, PNG, max 5MB)</label>
+                        <input type="file" class="form-control" id="profile_image" name="profile_image" accept="image/png, image/jpeg, image/webp">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="resume_file" class="form-label">Resume / CV (PDF, max 10MB)</label>
+                        <input type="file" class="form-control" id="resume_file" name="resume_file" accept="application/pdf">
+                    </div>
+
+                    <div class="col-12 mt-4">
+                        <button type="submit" class="btn-primary-ugpro py-3">Complete Registration</button>
+                    </div>
+                </div>
+            </form>
+
+            <div class="text-center mt-4">
+                <p class="text-muted small">Already have an account? <a href="<?= BASE_URL ?>signin_undergraduate.php" class="text-success fw-bold">Sign In as Undergraduate</a></p>
+            </div>
         </div>
     </div>
 </div>
 
-</body>
-</html>
+<?php require_once __DIR__ . '/includes/footer.php'; ?>

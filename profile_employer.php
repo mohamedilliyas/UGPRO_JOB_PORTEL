@@ -1,207 +1,366 @@
 <?php
-session_start();
+/**
+ * Employer Dashboard & Job Management - UgPro
+ */
+require_once __DIR__ . '/includes/auth.php';
+require_employer_auth();
 
-// Improved error handling
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+$employerId = $_SESSION['user_id'];
+$activeTab = $_GET['tab'] ?? 'jobs';
+$updateErrors = [];
+$updateSuccess = '';
 
-// Database connection
-define('SERVERNAME', '127.0.0.1');  // Or 'localhost'
-define('USERNAME', 'root');
-define('PASSWORD', 'mariadb');
-define('DBNAME', 'vavuniyauniversity');
-
-// Create database connection
-$connect = mysqli_connect(SERVERNAME, USERNAME, PASSWORD, DBNAME);
-
-// Check connection
-if (!$connect) {
-    die("Connection failed: " . mysqli_connect_error());
-}
-
-// Check if the employer is logged in
-if (!isset($_SESSION['employer_id'])) {
-    // Redirect to login page if not logged in
-    echo "<script>alert('Please login first.');</script>";
-    echo "<script>window.location.href = 'signin_employer.php';</script>";
+// Handle Job Status Toggle (Active / Closed)
+if (isset($_GET['action']) && $_GET['action'] === 'toggle_status' && isset($_GET['job_id'])) {
+    $jobId = intval($_GET['job_id']);
+    $stmt = $connect->prepare("UPDATE jobs SET status = IF(status = 'active', 'closed', 'active') WHERE id = ? AND employer_id = ?");
+    $stmt->bind_param("ii", $jobId, $employerId);
+    if ($stmt->execute()) {
+        set_flash('success', 'Job listing status updated successfully.');
+    }
+    $stmt->close();
+    header("Location: profile_employer.php?tab=jobs");
     exit();
 }
 
-// Fetch employer data from the database using prepared statements
-$employer_id = $_SESSION['employer_id'];
-$stmt = $connect->prepare("SELECT * FROM employer WHERE id = ?");
-$stmt->bind_param("i", $employer_id);
-$stmt->execute();
-$result = $stmt->get_result();
-
-if ($result->num_rows == 1) {
-    $row = $result->fetch_assoc();
-    $company_name = htmlspecialchars($row['company_name']);
-    $email = htmlspecialchars($row['email']);
-} else {
-    echo "<script>alert('Employer data not found.');</script>";
-    echo "<script>window.location.href = 'signin_employer.php';</script>";
+// Handle Job Deletion
+if (isset($_GET['action']) && $_GET['action'] === 'delete_job' && isset($_GET['job_id'])) {
+    $jobId = intval($_GET['job_id']);
+    $stmt = $connect->prepare("DELETE FROM jobs WHERE id = ? AND employer_id = ?");
+    $stmt->bind_param("ii", $jobId, $employerId);
+    if ($stmt->execute()) {
+        set_flash('success', 'Job posting has been deleted.');
+    }
+    $stmt->close();
+    header("Location: profile_employer.php?tab=jobs");
     exit();
 }
-$stmt->close();
 
-// Fetch all undergraduates' data
-$undergrad_sql = "SELECT * FROM undergraduate";
-$undergrad_result = mysqli_query($connect, $undergrad_sql);
+// Handle Company Profile Update
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_company_profile'])) {
+    $companyName = clean_input($_POST['companyName'] ?? '');
+    $website = clean_input($_POST['website'] ?? '');
+    $location = clean_input($_POST['location'] ?? '');
+    $industry = clean_input($_POST['industry'] ?? '');
+    $phone = clean_input($_POST['phone'] ?? '');
+    $about = clean_input($_POST['about'] ?? '');
 
-if (!$undergrad_result) {
-    die("Error fetching undergraduate profiles: " . mysqli_error($connect));
+    // Current logo
+    $currStmt = $connect->prepare("SELECT company_logo FROM employer WHERE id = ?");
+    $currStmt->bind_param("i", $employerId);
+    $currStmt->execute();
+    $currLogo = $currStmt->get_result()->fetch_assoc()['company_logo'] ?? 'images/google.png';
+    $currStmt->close();
+
+    $logoPath = $currLogo;
+    if (isset($_FILES['company_logo']) && $_FILES['company_logo']['error'] === UPLOAD_ERR_OK) {
+        $logoUpload = handle_file_upload($_FILES['company_logo'], LOGO_UPLOAD_DIR, ['jpg', 'jpeg', 'png', 'webp', 'svg'], 5242880);
+        if ($logoUpload['success']) {
+            $logoPath = $logoUpload['filePath'];
+            $_SESSION['user_avatar'] = $logoPath;
+        } else {
+            $updateErrors[] = "Logo Upload: " . $logoUpload['error'];
+        }
+    }
+
+    $passwordSql = "";
+    $newPassword = $_POST['new_password'] ?? '';
+    if (!empty($newPassword)) {
+        if (strlen($newPassword) >= 6) {
+            $hashed = password_hash($newPassword, PASSWORD_BCRYPT);
+            $passwordSql = ", password = '" . mysqli_real_escape_string($connect, $hashed) . "'";
+        } else {
+            $updateErrors[] = "New password must be at least 6 characters.";
+        }
+    }
+
+    if (empty($updateErrors)) {
+        $upStmt = $connect->prepare("UPDATE employer SET company_name = ?, website = ?, location = ?, industry = ?, phone = ?, about = ?, company_logo = ? {$passwordSql} WHERE id = ?");
+        $upStmt->bind_param("sssssssi", $companyName, $website, $location, $industry, $phone, $about, $logoPath, $employerId);
+
+        if ($upStmt->execute()) {
+            $_SESSION['user_name'] = $companyName;
+            $_SESSION['company_name'] = $companyName;
+            $updateSuccess = "Company profile updated successfully!";
+            $activeTab = 'settings';
+        } else {
+            $updateErrors[] = "Database update error: " . $connect->error;
+        }
+        $upStmt->close();
+    }
 }
+
+// Fetch employer record
+$empStmt = $connect->prepare("SELECT * FROM employer WHERE id = ?");
+$empStmt->bind_param("i", $employerId);
+$empStmt->execute();
+$employer = $empStmt->get_result()->fetch_assoc();
+$empStmt->close();
+
+if (!$employer) {
+    session_destroy();
+    header("Location: signin_employer.php");
+    exit();
+}
+
+// Fetch employer's jobs with applicant counts
+$jobsQuery = "SELECT j.*, c.name AS category_name, 
+              (SELECT COUNT(*) FROM job_applications WHERE job_id = j.id) AS total_applicants,
+              (SELECT COUNT(*) FROM job_applications WHERE job_id = j.id AND status = 'shortlisted') AS shortlisted_applicants
+              FROM jobs j 
+              LEFT JOIN job_categories c ON j.category_id = c.id 
+              WHERE j.employer_id = ? 
+              ORDER BY j.created_at DESC";
+$jobsStmt = $connect->prepare($jobsQuery);
+$jobsStmt->bind_param("i", $employerId);
+$jobsStmt->execute();
+$postedJobs = $jobsStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$jobsStmt->close();
+
+// Stats calculation
+$totalJobsCount = count($postedJobs);
+$activeJobsCount = 0;
+$totalApplicantsCount = 0;
+$shortlistedCount = 0;
+
+foreach ($postedJobs as $pj) {
+    if ($pj['status'] === 'active') $activeJobsCount++;
+    $totalApplicantsCount += intval($pj['total_applicants']);
+    $shortlistedCount += intval($pj['shortlisted_applicants']);
+}
+
+$pageTitle = "Employer Dashboard - UgPro";
+require_once __DIR__ . '/includes/header.php';
+require_once __DIR__ . '/includes/navbar.php';
 ?>
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UgPro - Employer Profile</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Poppins', sans-serif;
-            background-color: #f9f9f9;
-            margin: 0;
-            padding: 0;
-            padding-top: 60px; /* Adjusted padding for fixed navbar */
-        }
-        .navbar {
-            background-color: #1f4a40;
-            padding: 10px 20px;
-            position: fixed; /* Fixed position */
-            top: 0;
-            left: 0;
-            width: 100%;
-            z-index: 1000; /* Ensures it stays on top */
-        }
-        .navbar .welcome-message {
-            font-size: 1em;
-            color: white;
-        }
-        .navbar .logout-button {
-            background-color: #d9534f;
-            color: white;
-            padding: 8px 15px;
-            border: none;
-            font-size: 0.9em;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .container {
-            width: 90%;
-            max-width: 1000px;
-            margin: 20px auto;
-        }
-        .card {
-            background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            margin-bottom: 20px;
-        }
-        .card-header {
-            background-color: #1f4a40;
-            color: white;
-            text-align: center;
-            padding: 15px;
-            border-radius: 8px 8px 0 0;
-        }
-        .card-body {
-            padding: 20px;
-            text-align: center; /* Center-align text */
-        }
-        .profile-info {
-            margin-bottom: 10px;
-            font-size: 1.1rem;
-            color: #333;
-            text-align: center; /* Center-align profile details */
-        }
-        .profile-info label {
-            font-weight: bold;
-        }
-        .social-media a {
-            margin-right: 15px;
-            text-decoration: none;
-            color: #0073e6;
-            font-size: 1.1em;
-        }
-        .btn-primary {
-            background-color: #0073e6;
-            border-color: #0073e6;
-            color: white;
-        }
-        .profile-image {
-            width: 150px;
-            height: 150px;
-            border-radius: 50%;
-            object-fit: cover;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            margin-left: auto;
-            margin-right: auto;
-        }
-    </style>
-</head>
-<body>
-
-<!-- Navbar with welcome message and logout button -->
-<div class="navbar">
-    <span class="welcome-message">Welcome, <?php echo $company_name; ?></span>
-    <form method="POST" action="index.php" style="margin: 0;">
-        <button class="logout-button" type="submit">Logout</button>
-    </form>
+<!-- Header Banner -->
+<div class="dashboard-header-banner">
+    <div class="obj-width">
+        <div class="d-flex flex-column flex-md-row align-items-center justify-content-between gap-4">
+            <div class="d-flex align-items-center gap-3">
+                <div class="bg-white p-2 rounded-4 shadow-sm" style="width: 80px; height: 80px; display: flex; align-items: center; justify-content: center;">
+                    <img src="<?= BASE_URL ?><?= !empty($employer['company_logo']) ? htmlspecialchars($employer['company_logo']) : 'images/google.png' ?>" alt="Company Logo" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+                </div>
+                <div>
+                    <h1 class="h2 text-white fw-bold mb-1"><?= htmlspecialchars($employer['company_name']) ?></h1>
+                    <p class="text-white-50 mb-0 small">
+                        <i class="bi bi-briefcase me-1"></i> <?= htmlspecialchars($employer['industry'] ?? 'Information Technology') ?> &bull; 
+                        <i class="bi bi-geo-alt me-1"></i> <?= htmlspecialchars($employer['location'] ?? 'Colombo, Sri Lanka') ?>
+                    </p>
+                </div>
+            </div>
+            
+            <div class="d-flex gap-2">
+                <a href="<?= BASE_URL ?>employer_post_job.php" class="btn btn-success rounded-pill px-4 shadow-sm"><i class="bi bi-plus-circle me-1"></i> Post a New Job</a>
+                <a href="<?= BASE_URL ?>browse_candidates.php" class="btn btn-outline-light rounded-pill px-3"><i class="bi bi-search me-1"></i> Talent Pool</a>
+            </div>
+        </div>
+    </div>
 </div>
 
-<div class="container">
-    <h2>Undergraduate Profiles</h2>
-
-    <?php
-    // Loop through all undergraduates and display their profile cards
-    while ($undergrad_row = mysqli_fetch_assoc($undergrad_result)) {
-        // Check if name exists in the database and handle missing values
-        $name = !empty($undergrad_row['full_name']) ? htmlspecialchars($undergrad_row['full_name']) : 'No name provided';
-        $course = isset($undergrad_row['course']) ? htmlspecialchars($undergrad_row['course']) : 'Not specified';
-        $skills = isset($undergrad_row['skills']) ? htmlspecialchars($undergrad_row['skills']) : 'No skills provided';
-        $projects = isset($undergrad_row['projects']) ? htmlspecialchars($undergrad_row['projects']) : 'No projects added';
-        $github = isset($undergrad_row['github']) ? htmlspecialchars($undergrad_row['github']) : '#';
-        $linkedin = isset($undergrad_row['linkedin']) ? htmlspecialchars($undergrad_row['linkedin']) : '#';
-        $profile_image = isset($undergrad_row['profile_image']) ? htmlspecialchars($undergrad_row['profile_image']) : 'default-profile.png'; // default image
-    ?>
-        <div class="card">
-            <div class="card-header">
-                <h3><?php echo $name; ?></h3> <!-- Displaying Name -->
-            </div>
-            <div class="card-body">
-                <div class="profile-image">
-                    <img src="<?php echo $profile_image; ?>" alt="Profile Image">
-                </div>
-                <div class="profile-info">
-                    <label>Course:</label> <?php echo $course; ?>
-                </div>
-                <div class="profile-info">
-                    <label>Skills:</label> <?php echo $skills; ?>
-                </div>
-                <div class="profile-info">
-                    <label>Projects:</label> <?php echo $projects; ?>
-                </div>
-                <div class="social-media">
-                    <a href="<?php echo $github; ?>" target="_blank"><i class="bi bi-github"></i> GitHub</a>
-                    <a href="<?php echo $linkedin; ?>" target="_blank"><i class="bi bi-linkedin"></i> LinkedIn</a>
+<!-- Metrics Counters -->
+<div class="obj-width my-5">
+    <div class="row g-3 mb-4">
+        <div class="col-md-3 col-6">
+            <div class="stat-counter-card">
+                <div class="stat-icon green"><i class="bi bi-briefcase-fill"></i></div>
+                <div class="stat-info">
+                    <h4><?= $activeJobsCount ?></h4>
+                    <p>Active Job Posts</p>
                 </div>
             </div>
         </div>
-    <?php
-    }
-    ?>
+        <div class="col-md-3 col-6">
+            <div class="stat-counter-card">
+                <div class="stat-icon blue"><i class="bi bi-people-fill"></i></div>
+                <div class="stat-info">
+                    <h4><?= $totalApplicantsCount ?></h4>
+                    <p>Total Applicants</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-counter-card">
+                <div class="stat-icon purple"><i class="bi bi-person-check-fill"></i></div>
+                <div class="stat-info">
+                    <h4><?= $shortlistedCount ?></h4>
+                    <p>Shortlisted Candidates</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="stat-counter-card">
+                <div class="stat-icon amber"><i class="bi bi-collection-fill"></i></div>
+                <div class="stat-info">
+                    <h4><?= $totalJobsCount ?></h4>
+                    <p>Total Campaigns</p>
+                </div>
+            </div>
+        </div>
+    </div>
 
+    <?php if (!empty($updateSuccess)): ?>
+        <div class="alert alert-success shadow-sm rounded-3 d-flex align-items-center mb-4">
+            <i class="bi bi-check-circle-fill me-2 fs-5"></i>
+            <div><?= htmlspecialchars($updateSuccess) ?></div>
+        </div>
+    <?php endif; ?>
+
+    <?php if (!empty($updateErrors)): ?>
+        <div class="alert alert-danger shadow-sm rounded-3 mb-4">
+            <ul class="mb-0 ps-3">
+                <?php foreach ($updateErrors as $err): ?>
+                    <li><?= htmlspecialchars($err) ?></li>
+                <?php endforeach; ?>
+            </ul>
+        </div>
+    <?php endif; ?>
+
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-tabs nav-tabs-modern">
+        <li class="nav-item">
+            <a class="nav-link <?= $activeTab === 'jobs' ? 'active' : '' ?>" href="?tab=jobs"><i class="bi bi-list-task me-2"></i>My Job Postings</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link <?= $activeTab === 'settings' ? 'active' : '' ?>" href="?tab=settings"><i class="bi bi-gear me-2"></i>Company Settings</a>
+        </li>
+    </ul>
+
+    <!-- Tab 1: Posted Jobs Table -->
+    <?php if ($activeTab === 'jobs'): ?>
+        <div class="card border-0 shadow-sm rounded-4 p-4">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h4 class="fw-bold mb-0">Active & Past Job Listings</h4>
+                <a href="<?= BASE_URL ?>employer_post_job.php" class="btn btn-sm btn-primary-ugpro rounded-pill px-3" style="width: auto;"><i class="bi bi-plus-lg me-1"></i> Add Vacancy</a>
+            </div>
+
+            <?php if (!empty($postedJobs)): ?>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Job Title & Category</th>
+                                <th>Type & Workplace</th>
+                                <th>Location & Salary</th>
+                                <th>Status</th>
+                                <th>Applicants</th>
+                                <th>Deadline</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($postedJobs as $job): ?>
+                                <tr>
+                                    <td>
+                                        <strong class="d-block text-dark"><a href="<?= BASE_URL ?>job_details.php?id=<?= $job['id'] ?>"><?= htmlspecialchars($job['title']) ?></a></strong>
+                                        <span class="text-muted small"><?= htmlspecialchars($job['category_name'] ?? 'General') ?></span>
+                                    </td>
+                                    <td>
+                                        <span class="badge-type"><?= htmlspecialchars($job['job_type']) ?></span>
+                                        <span class="badge-workplace ms-1"><?= htmlspecialchars($job['workplace_type']) ?></span>
+                                    </td>
+                                    <td>
+                                        <div class="small text-muted"><i class="bi bi-geo-alt"></i> <?= htmlspecialchars($job['location']) ?></div>
+                                        <div class="small fw-semibold text-success"><?= htmlspecialchars($job['salary_range']) ?></div>
+                                    </td>
+                                    <td>
+                                        <a href="?action=toggle_status&job_id=<?= $job['id'] ?>" title="Click to toggle status" class="status-badge <?= $job['status'] === 'active' ? 'active' : 'closed' ?> text-decoration-none">
+                                            <i class="bi bi-circle-fill" style="font-size: 6px;"></i> <?= ucfirst($job['status']) ?>
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <a href="<?= BASE_URL ?>employer_applicants.php?job_id=<?= $job['id'] ?>" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                                            <i class="bi bi-people me-1"></i> View (<?= $job['total_applicants'] ?>)
+                                        </a>
+                                    </td>
+                                    <td class="small text-muted"><?= !empty($job['deadline']) ? date('M d, Y', strtotime($job['deadline'])) : 'Open' ?></td>
+                                    <td class="text-end">
+                                        <div class="btn-group">
+                                            <a href="<?= BASE_URL ?>employer_edit_job.php?id=<?= $job['id'] ?>" class="btn btn-sm btn-outline-secondary" title="Edit Job"><i class="bi bi-pencil"></i></a>
+                                            <a href="?action=delete_job&job_id=<?= $job['id'] ?>" onclick="return confirm('Are you sure you want to permanently delete this job post?')" class="btn btn-sm btn-outline-danger" title="Delete Job"><i class="bi bi-trash"></i></a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php else: ?>
+                <div class="text-center py-5">
+                    <i class="bi bi-briefcase text-muted fs-1 mb-3 d-block"></i>
+                    <h5>No jobs posted yet</h5>
+                    <p class="text-muted small">Post your first vacancy to start receiving applications from university undergraduates.</p>
+                    <a href="<?= BASE_URL ?>employer_post_job.php" class="btn btn-primary-ugpro rounded-pill px-4 mt-2" style="width: auto;">Post a New Job Vacancy</a>
+                </div>
+            <?php endif; ?>
+        </div>
+
+    <!-- Tab 2: Company Profile Settings -->
+    <?php elseif ($activeTab === 'settings'): ?>
+        <div class="card border-0 shadow-sm rounded-4 p-4 p-md-5">
+            <h4 class="fw-bold mb-4"><i class="bi bi-building-gear text-success me-2"></i>Update Company Profile</h4>
+            <form method="POST" enctype="multipart/form-data" action="profile_employer.php?tab=settings">
+                <input type="hidden" name="update_company_profile" value="1">
+                
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="companyName" class="form-label">Company Name *</label>
+                        <input type="text" class="form-control" id="companyName" name="companyName" value="<?= htmlspecialchars($employer['company_name']) ?>" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="email" class="form-label">Email (Read Only)</label>
+                        <input type="email" class="form-control bg-light" id="email" value="<?= htmlspecialchars($employer['email']) ?>" readonly>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="website" class="form-label">Website URL</label>
+                        <input type="url" class="form-control" id="website" name="website" value="<?= htmlspecialchars($employer['website'] ?? '') ?>" placeholder="https://www.company.com">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="phone" class="form-label">Contact Phone</label>
+                        <input type="tel" class="form-control" id="phone" name="phone" value="<?= htmlspecialchars($employer['phone'] ?? '') ?>">
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="industry" class="form-label">Industry</label>
+                        <select class="form-select" id="industry" name="industry">
+                            <option value="Information Technology" <?= ($employer['industry'] ?? '') === 'Information Technology' ? 'selected' : '' ?>>Information Technology</option>
+                            <option value="Banking & Financial Services" <?= ($employer['industry'] ?? '') === 'Banking & Financial Services' ? 'selected' : '' ?>>Banking & Financial Services</option>
+                            <option value="Telecommunications" <?= ($employer['industry'] ?? '') === 'Telecommunications' ? 'selected' : '' ?>>Telecommunications</option>
+                            <option value="E-Commerce & Digital" <?= ($employer['industry'] ?? '') === 'E-Commerce & Digital' ? 'selected' : '' ?>>E-Commerce & Digital</option>
+                            <option value="Consulting & Business Services" <?= ($employer['industry'] ?? '') === 'Consulting & Business Services' ? 'selected' : '' ?>>Consulting & Business Services</option>
+                            <option value="Other" <?= ($employer['industry'] ?? '') === 'Other' ? 'selected' : '' ?>>Other</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="location" class="form-label">Location / Headquarters</label>
+                        <input type="text" class="form-control" id="location" name="location" value="<?= htmlspecialchars($employer['location'] ?? '') ?>">
+                    </div>
+
+                    <div class="col-12">
+                        <label for="about" class="form-label">About Company</label>
+                        <textarea class="form-control" id="about" name="about" rows="3"><?= htmlspecialchars($employer['about'] ?? '') ?></textarea>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="company_logo" class="form-label">Change Company Logo</label>
+                        <input type="file" class="form-control" id="company_logo" name="company_logo" accept="image/*">
+                        <span class="small text-muted">Leave empty to keep existing logo.</span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="new_password" class="form-label">New Password (Optional)</label>
+                        <input type="password" class="form-control" id="new_password" name="new_password" placeholder="Leave blank to keep current password">
+                    </div>
+
+                    <div class="col-12 mt-4">
+                        <button type="submit" class="btn btn-primary-ugpro py-3" style="max-width: 300px;">Save Company Profile</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    <?php endif; ?>
 </div>
 
-<!-- Bootstrap JS (Optional, for interactive components) -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-
-</body>
-</html>
+<?php require_once __DIR__ . '/includes/footer.php'; ?>

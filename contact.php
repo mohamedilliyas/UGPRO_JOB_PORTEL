@@ -1,117 +1,134 @@
-<!DOCTYPE html>
-<html lang="en">
+<?php
+/**
+ * Contact Us & University Placement Inquiries - UgPro
+ */
+require_once __DIR__ . '/includes/auth.php';
 
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Responsive UgPro - Jobs_Portal</title>
-        <link rel="stylesheet" href="../style.css">
-        <link rel="stylesheet" href="bootstrap-5.3.3-dist/css/bootstrap.min.css">
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-        <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap-5.3.3-dist/js/bootstrap.bundle.min.js"></script>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-        
-    </head>
+$successMsg = '';
+$errorMsg = '';
 
-    <body>
-        
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $name = clean_input($_POST['name'] ?? '');
+    $email = filter_var(trim($_POST['email'] ?? ''), FILTER_VALIDATE_EMAIL);
+    $subject = clean_input($_POST['subject'] ?? 'General Inquiry');
+    $message = clean_input($_POST['message'] ?? '');
 
-        <!-- contact-->
-         
+    if (empty($name) || !$email || empty($message)) {
+        $errorMsg = "Please fill out all required fields with a valid email address.";
+    } else {
+        if ($connect) {
+            $stmt = $connect->prepare("INSERT INTO contact_messages (name, email, subject, message, status) VALUES (?, ?, ?, ?, 'unread')");
+            $stmt->bind_param("ssss", $name, $email, $subject, $message);
+            if ($stmt->execute()) {
+                $successMsg = "Thank you, {$name}! Your message has been received. The Career Guidance Unit will get back to you shortly.";
+            } else {
+                $errorMsg = "Failed to save message. Please try again.";
+            }
+            $stmt->close();
+        } else {
+            $errorMsg = "Database connection error.";
+        }
+    }
+}
 
-        <header>
-            <div id="navbar" class="obj-width" >
-                <a href="../index.php" ><img class="logo" src="../images/logo.png"></a>
+$pageTitle = "Contact Us - UgPro";
+require_once __DIR__ . '/includes/header.php';
+require_once __DIR__ . '/includes/navbar.php';
+?>
 
-                <i id="bar" class='bx bx-menu '></i>
-                <ul id="menu">
-                    <li><a href="../index.php">Home</a></li>
-                    
-                    <li><a href="../contact.php">Contact Us</a></li>
-                    <button id="w-btn" >Register</button>
-                </ul>
+<div class="dashboard-header-banner">
+    <div class="obj-width text-center">
+        <h1 class="h2 text-white fw-bold mb-2">Get in Touch with Us</h1>
+        <p class="text-white-50 mb-0">Have questions about university placements, employer partnerships, or student verification?</p>
+    </div>
+</div>
 
-                
+<div class="obj-width my-5">
+    <div class="card border-0 shadow-sm rounded-4 p-4 p-md-5">
+        <div class="row g-5 align-items-center">
+            <!-- Contact Info -->
+            <div class="col-lg-5">
+                <h3 class="fw-bold text-dark mb-3">University Career Guidance Unit</h3>
+                <p class="text-muted mb-4">We assist students with CV review, interview preparation, and corporate networking drives. Employers can reach out for dedicated on-campus placement sessions.</p>
+
+                <div class="d-flex flex-column gap-3 mb-4">
+                    <div class="d-flex align-items-start gap-3">
+                        <div class="stat-icon green" style="width: 44px; height: 44px; font-size: 1.2rem;"><i class="bi bi-geo-alt-fill"></i></div>
+                        <div>
+                            <strong class="d-block text-dark">Location:</strong>
+                            <span class="text-muted small">Career Guidance Unit, University of Vavuniya, Pambaimadu, Vavuniya, Sri Lanka</span>
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-start gap-3">
+                        <div class="stat-icon blue" style="width: 44px; height: 44px; font-size: 1.2rem;"><i class="bi bi-envelope-fill"></i></div>
+                        <div>
+                            <strong class="d-block text-dark">Email Inquiries:</strong>
+                            <span class="text-muted small">careers@vau.ac.lk / support@ugpro.lk</span>
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-start gap-3">
+                        <div class="stat-icon purple" style="width: 44px; height: 44px; font-size: 1.2rem;"><i class="bi bi-telephone-fill"></i></div>
+                        <div>
+                            <strong class="d-block text-dark">Telephone:</strong>
+                            <span class="text-muted small">+94 24 222 2265 / +94 24 222 0179</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-center text-lg-start">
+                    <img src="<?= BASE_URL ?>images/contact.svg" alt="Contact Illustration" style="max-width: 260px; height: auto;">
+                </div>
             </div>
-        </header>
 
-       <section class="contact obj-width sec-space extra-space" >
-        <div class="contact-img">
-            <h2>Get in touch</h2>
-            <p>Most viewed and all-time top-selling services</p>
-            <img src="images/contact.svg" alt="">
-        </div>
-        <form id="contact-form" method="POST" action="send_email.php">
-            <label for="name">Name :</label>
-            <input type="text" name="name" id="name" autocomplete="off" required />
+            <!-- Contact Form -->
+            <div class="col-lg-7 bg-light p-4 p-md-5 rounded-4">
+                <h4 class="fw-bold text-dark mb-1">Send a Message</h4>
+                <p class="text-muted small mb-4">We usually respond within 24 business hours</p>
 
-            <label for="email">Email :</label>
-            <input type="text" name="email" id="email" autocomplete="off" required />
+                <?php if (!empty($successMsg)): ?>
+                    <div class="alert alert-success shadow-sm rounded-3 d-flex align-items-center mb-4">
+                        <i class="bi bi-check-circle-fill me-2 fs-5"></i>
+                        <div><?= htmlspecialchars($successMsg) ?></div>
+                    </div>
+                <?php endif; ?>
 
-            <label for="message">Message :</label>
-            <textarea name="message" id="message" rows="5" required></textarea>
+                <?php if (!empty($errorMsg)): ?>
+                    <div class="alert alert-danger shadow-sm rounded-3 mb-4">
+                        <?= htmlspecialchars($errorMsg) ?>
+                    </div>
+                <?php endif; ?>
 
-            <input type="submit" id="g-btn" value="Submit">
-        </form>
-        
-    </section>
-      
+                <form method="POST" action="contact.php">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="name" class="form-label">Your Name *</label>
+                            <input type="text" class="form-control" id="name" name="name" placeholder="Enter your name" value="<?= htmlspecialchars($_POST['name'] ?? '') ?>" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="email" class="form-label">Email Address *</label>
+                            <input type="email" class="form-control" id="email" name="email" placeholder="name@domain.com" value="<?= htmlspecialchars($_POST['email'] ?? '') ?>" required>
+                        </div>
 
+                        <div class="col-12">
+                            <label for="subject" class="form-label">Subject</label>
+                            <input type="text" class="form-control" id="subject" name="subject" placeholder="e.g. Employer Partnership / Student Support" value="<?= htmlspecialchars($_POST['subject'] ?? '') ?>">
+                        </div>
 
-<footer class="footer">
-    <div class="obj-width">
-        <div class="top">
-            <div>
-                <img class="logo" 
-                src="../images/logo.png" alt="">
-                <p>University-powered job portal,Showcasing top telants to lead...</p>
-            </div>
-            <div>
-                <a href="#" title="LinkedIn"><i class='bx bxl-linkedin'></i></a>
-                <a href="#" title="GitHub"><i class='bx bxl-github'></i></a>
-                <a href="#" title="Twitter"><i class='bx bxl-twitter'></i></a>
-            </div>
-        </div>
-        <div class="bottom">
-            <div>
-                <h3>Project</h3>
-                <a href="#">Changelog</a>
-                <a href="#">Status</a>
-                <a href="#">Licence</a>
-                <a href="#">All version</a>
-            </div>
-            <div>
-                <h3>Community</h3>
-                <a href="#">Github</a>
-                <a href="#">Issues</a>
-                <a href="#">Licence</a>
-                <a href="#">All version</a>
-            </div>
-            <div>
-                <h3>Help</h3>
-                <a href="#">Support</a>
-                <a href="#">Troubleshooting</a>
-                <a href="#">Contact Us</a>
-                
-            </div>
-            <div>
-                <h3>Others</h3>
-                <a href="#">Teerms of Service</a>
-                <a href="#">Privacy</a>
-                <a href="#">Licence</a>
-                
+                        <div class="col-12">
+                            <label for="message" class="form-label">Your Message *</label>
+                            <textarea class="form-control" id="message" name="message" rows="5" placeholder="Write your inquiry or question here..." required><?= htmlspecialchars($_POST['message'] ?? '') ?></textarea>
+                        </div>
+
+                        <div class="col-12 mt-4">
+                            <button type="submit" class="btn btn-primary-ugpro py-3">Submit Inquiry</button>
+                        </div>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
-</footer>
+</div>
 
-        <script src="job-list.js"></script>
-        <script src="../toggle.js"></script>
-        <script src="jobSearch.js"></script>
-
-        
-    </body>
-
-</html>
+<?php require_once __DIR__ . '/includes/footer.php'; ?>

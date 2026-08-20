@@ -1,304 +1,278 @@
-<!DOCTYPE html>
-<html lang="en">
+<?php
+/**
+ * UgPro University Job & Career Portal - Home Page
+ */
+require_once __DIR__ . '/includes/auth.php';
 
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Responsive UgPro - Jobs_Portal</title>
-        <link rel="stylesheet" href="style.css">
-        <link rel="stylesheet" href="bootstrap-5.3.3-dist/css/bootstrap.min.css">
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-        <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap-5.3.3-dist/js/bootstrap.bundle.min.js"></script>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-        
-    </head>
+// Fetch Live Statistics
+$stats = [
+    'total_jobs' => 12,
+    'total_employers' => 8,
+    'total_students' => 150,
+    'total_applications' => 45
+];
 
-    <body>
-        
+if ($connect) {
+    $jCount = @$connect->query("SELECT COUNT(*) AS c FROM jobs WHERE status = 'active'")->fetch_assoc()['c'] ?? 12;
+    $eCount = @$connect->query("SELECT COUNT(*) AS c FROM employer")->fetch_assoc()['c'] ?? 8;
+    $sCount = @$connect->query("SELECT COUNT(*) AS c FROM undergraduate")->fetch_assoc()['c'] ?? 150;
+    $aCount = @$connect->query("SELECT COUNT(*) AS c FROM job_applications")->fetch_assoc()['c'] ?? 45;
+    $stats = [
+        'total_jobs' => max(1, $jCount),
+        'total_employers' => max(1, $eCount),
+        'total_students' => max(1, $sCount),
+        'total_applications' => max(1, $aCount)
+    ];
+}
 
-        <!-- Header  Section-->
-        <header>
-    <div id="navbar" class="obj-width" >
-        <a href="index.php" ><img class="logo" src="images/logo.png"></a>
+// Fetch Featured Jobs
+$featuredJobs = [];
+if ($connect) {
+    $fjQuery = "SELECT j.*, e.company_name, e.company_logo, c.name AS category_name 
+                FROM jobs j 
+                JOIN employer e ON j.employer_id = e.id 
+                LEFT JOIN job_categories c ON j.category_id = c.id 
+                WHERE j.status = 'active' 
+                ORDER BY j.created_at DESC 
+                LIMIT 6";
+    $fjRes = $connect->query($fjQuery);
+    if ($fjRes) $featuredJobs = $fjRes->fetch_all(MYSQLI_ASSOC);
+}
 
-        <i id="bar" class='bx bx-menu '></i>
-        <ul id="menu">
-            <li><a href="#">Home</a></li>
-            <li><a href="#">Features <i class='bx bx-caret-down'></i></a>
-                <ul class="dropDown">
-                    <li><a href="#jobs">Jobs in demand</a></li>
-                    <li><a href="#whyChooseUs">Why Choose Us?</a></li>
-                    <li><a href="#latestJobListings">Latest Job Listings</a></li>
-                    <li><a href="#ourPartnerCompanies">Our Partner Companies</a></li>
-                    <li><a href="#meetTheTeam">Meet the Team</a></li>
-                </ul>
-            </li>
-            <li><a href="jobs/job.php">Browse Job</a></li>
-            <li><a href="contact.php">Contact Us</a></li>
-            <!--<button id="w-btn">Register</button>-->
-            <button onclick="showRegisterOptions()" id="w-btn">Register</button>
+// Fetch Categories for Quick Browse
+$categories = [];
+if ($connect) {
+    $catRes = $connect->query("SELECT * FROM job_categories LIMIT 8");
+    if ($catRes) $categories = $catRes->fetch_all(MYSQLI_ASSOC);
+}
 
-        </ul>
+$pageTitle = "UgPro - University Career & Job Portal";
+require_once __DIR__ . '/includes/header.php';
+require_once __DIR__ . '/includes/navbar.php';
+?>
 
-        
-    </div>
-</header>
+<!-- Hero Section -->
+<section class="hero-modern" id="home">
+    <div class="obj-width">
+        <div class="row align-items-center g-5">
+            <div class="col-lg-7">
+                <div class="hero-badge">
+                    <i class="bi bi-patch-check-fill text-success"></i> Official University of Vavuniya Career Network
+                </div>
+                <h1 class="hero-title">
+                    Connecting <span>Undergraduates</span> with Leading Tech & Industry Employers
+                </h1>
+                <p class="hero-subtitle">
+                    Discover verified internships, graduate associate roles, and project opportunities tailored specifically for university talent.
+                </p>
 
-        
-       
+                <!-- Search Box Form -->
+                <form method="GET" action="jobs.php" class="hero-search-box mb-4">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" name="q" class="form-control" placeholder="Job title, technical skill, or company...">
+                    <button type="submit" class="hero-search-btn">Search Jobs</button>
+                </form>
 
-
-
-        <!-- Register Options Modal -->
-<div id="registerModal" class="modal" style="display: none;">
-    <div class="modal-content">
-        <span onclick="closeModal()" class="close">&times;</span>
-        <h3>Select Your Role</h3>
-        <button onclick="redirectTo('undergraduate')" class="modal-button">I am an Undergraduate</button>
-        <button onclick="redirectTo('employer')" class="modal-button">I am an Employer</button>
-        
-    </div>
-</div>
-
-
-  
-        
-
-
-        <!-- Hero  Section-->
-         <section class="hero" id="home">
-            <div class="hero-box obj-width">
-                <div class="h-left">
-                    <h1>Connecting Students with Employers Effortlessly</h1>
-                    <p>University-powered job portal,Showcasing top telants to lead...</p>
-                    <div class="search ">
-                        <input type="text" placeholder="Are you looking for...">
-                        <a id="g-btn" href="#">Search</a>
+                <!-- Dynamic Live Stats -->
+                <div class="hero-stats-row">
+                    <div class="hero-stat-item">
+                        <h3><?= number_format($stats['total_jobs']) ?>+</h3>
+                        <p>Active Vacancies</p>
+                    </div>
+                    <div class="hero-stat-item">
+                        <h3><?= number_format($stats['total_employers']) ?>+</h3>
+                        <p>Partner Companies</p>
+                    </div>
+                    <div class="hero-stat-item">
+                        <h3><?= number_format($stats['total_students']) ?>+</h3>
+                        <p>Registered Students</p>
                     </div>
                 </div>
+            </div>
 
-                <div class="h-right">
-                    <img src="images/hero1.PNG" alt="">
+            <div class="col-lg-5 d-none d-lg-block">
+                <div class="hero-img-card">
+                    <img src="<?= BASE_URL ?>images/hero1.PNG" alt="Student Career Portal" class="hero-img-main">
+                    
+                    <div class="hero-floating-badge">
+                        <div class="bg-success text-white p-2 rounded-circle">
+                            <i class="bi bi-shield-check fs-4"></i>
+                        </div>
+                        <div>
+                            <strong class="d-block small">100% University Verified</strong>
+                            <span class="text-muted" style="font-size: 0.75rem;">Authentication & Placement</span>
+                        </div>
+                    </div>
                 </div>
-            </div>
-         </section>
-
-         
-
-
-        <!-- Features  Section-->
-
-
-
-        
-
-
-        <!-- Job Listing  Section-->
-
-        <section class="jobs sec-space obj-width" id="jobs">
-            <h2>Jobs in demand</h2>
-            <p>Most viewed and all-time top-selling services</p>
-
-            <ul class="job-id">
-                <li data-target="all" class="active">Recent Jobs</li>
-                <li data-target="freelancer">Freelancer</li>
-                <li data-target="fullTime">Full Time</li>
-                <li data-target="partTime">Part Time</li>
-            </ul>
-
-            <div class="jobs-container">
-                <li data-item="fullTime" class="jList">
-                    <img src="images/google.png" alt="">
-                    <h3>Web Developer</h3>
-                    <p>$900-1200/m</p>
-                    <span id="key">Full Time</span>
-                </li>
-
-                <li data-item="freelancer" class="jList">
-                    <img src="images/uber.png" alt="">
-                    <h3>Freelancer</h3>
-                    <p>$700-1100/m</p>
-                    <span id="key">Freelancer</span>
-                </li>
-
-                <li data-item="partTime" class="jList">
-                    <img src="images/linkedin.png" alt="">
-                    <h3>Business Associate</h3>
-                    <p>$900-1500/m</p>
-                    <span id="key">Part Time</span>
-                </li>
-
-                <li data-item="fullTime" class="jList">
-                    <img src="images/facebook.png" alt="">
-                    <h3>Digital Marketing</h3>
-                    <p>$900-1200/m</p>
-                    <span id="key">Full Time</span>
-                </li>
-
-                <li data-item="partTime" class="jList">
-                    <img src="images/yahoo.png" alt="">
-                    <h3>User Experience</h3>
-                    <p>$900-1200/m</p>
-                    <span id="key">Part Time</span>
-                </li>
-
-            </div>
-        </section>
-
-       
-
-
-        <!-- Team  Section-->
-
-
-        <!-- Footer  Section-->
-        
-        
-    <section class="features sec-space" id="whyChooseUs">
-        <div class="obj-width " >
-            <h2>Why Choose Us?</h2>
-            <div class="feature-items">
-                <div class="feature">
-                    <i class="bi bi-briefcase"></i>
-                    <h3>Verified Jobs</h3>
-                    <p>All jobs listed are verified by the university for authenticity.</p>
-                </div>
-                <div class="feature">
-                    <i class="bi bi-lightbulb"></i>
-                    <h3>Skill-Based Search</h3>
-                    <p>Easily find jobs that match your skills and qualifications.</p>
-                </div>
-                <div class="feature">
-                    <i class="bi bi-hand-thumbs-up"></i>
-                    <h3>University Support</h3>
-                    <p>Get assistance from the university for career guidance.</p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Job Listing Section -->
-    <section class="jobs sec-space extra-space" id="latestJobListings">
-        <div class="obj-width">
-            <h2>Latest Job Listings</h2>
-            <div class="job-list">
-                <div class="job-item">
-                    <h3>Web Developer</h3>
-                    <p>XYZ Tech Inc. | Colombo, Sri Lanka</p>
-                    <a href="#" class="g-btn">Apply Now</a>
-                </div>
-                <div class="job-item">
-                    <h3>Graphic Designer</h3>
-                    <p>DesignPro Ltd. | Jaffna, Sri Lanka</p>
-                    <a href="#" class="g-btn">Apply Now</a>
-                </div>
-                <!-- More Job Listings -->
-            </div>
-        </div>
-    </section>
-
-
-
-
- 
-
-    <!-- Brand Section -->
-    <section class="brands sec-space" id="ourPartnerCompanies">
-        <div class="obj-width">
-            <h2>Our Partner Companies</h2>
-            <div class="brand-logos">
-                <img src="images/t1.png" alt="Brand 1">
-                <img src="images/t2.png" alt="Brand 2">
-                <img src="images/t3.png" alt="Brand 3">
-                <img src="images/t5.png" alt="Brand 3">
-            </div>
-        </div>
-    </section>
-
-    <!-- Team Section -->
-    <section class="team sec-space" id="meetTheTeam">
-        <div class="obj-width">
-            <h2>Meet the Team</h2>
-            <div class="team-members">
-                <div class="member">
-                    <img src="images/fl-3.png" alt="Team Member 1">
-                    <h3>John Doe</h3>
-                    <p>Lead Developer</p>
-                </div>
-                <div class="member">
-                    <img src="images/fl-3.png" alt="Team Member 2">
-                    <h3>Jane Smith</h3>
-                    <p>UI/UX Designer</p>
-                </div>
-                <!-- More Team Members -->
-            </div>
-        </div>
-    </section>
-
-
-
-
-
-
-
-    <!-- Footer Section -->
-
-    <footer class="footer">
-    <div class="obj-width">
-        <div class="top">
-            <div>
-                <img class="logo" 
-                src="images/logo.png" alt="">
-                <p>University-powered job portal,Showcasing top telants to lead...</p>
-            </div>
-            <div>
-                <a href="#" title="LinkedIn"><i class='bx bxl-linkedin'></i></a>
-                <a href="#" title="GitHub"><i class='bx bxl-github'></i></a>
-                <a href="#" title="Twitter"><i class='bx bxl-twitter'></i></a>
-            </div>
-        </div>
-        <div class="bottom">
-            <div>
-                <h3>Project</h3>
-                <a href="#">Changelog</a>
-                <a href="#">Status</a>
-                <a href="#">Licence</a>
-                <a href="#">All version</a>
-            </div>
-            <div>
-                <h3>Community</h3>
-                <a href="#">Github</a>
-                <a href="#">Issues</a>
-                <a href="#">Licence</a>
-                <a href="#">All version</a>
-            </div>
-            <div>
-                <h3>Help</h3>
-                <a href="#">Support</a>
-                <a href="#">Troubleshooting</a>
-                <a href="#">Contact Us</a>
-                
-            </div>
-            <div>
-                <h3>Others</h3>
-                <a href="#">Teerms of Service</a>
-                <a href="#">Privacy</a>
-                <a href="#">Licence</a>
-                
             </div>
         </div>
     </div>
-</footer>
+</section>
 
+<!-- Job Categories Quick Browse -->
+<section class="sec-space bg-white border-bottom">
+    <div class="obj-width">
+        <div class="section-header">
+            <span class="section-tag">Explore Fields</span>
+            <h2>Top Career Categories</h2>
+            <p>Browse job vacancies across highest-demand industries</p>
+        </div>
 
+        <div class="row g-3">
+            <?php foreach ($categories as $cat): ?>
+                <div class="col-lg-3 col-md-4 col-6">
+                    <a href="jobs.php?category=<?= htmlspecialchars($cat['slug']) ?>" class="card border-0 shadow-sm rounded-4 p-3 text-center h-100 text-decoration-none hover-card" style="background: var(--light-bg); transition: var(--transition);">
+                        <div class="feature-icon-wrap mb-2" style="width: 50px; height: 50px; font-size: 1.4rem;">
+                            <i class="bi <?= htmlspecialchars($cat['icon'] ?? 'bi-briefcase') ?>"></i>
+                        </div>
+                        <h6 class="fw-bold text-dark mb-1"><?= htmlspecialchars($cat['name']) ?></h6>
+                        <span class="text-muted small">Explore Jobs &rarr;</span>
+                    </a>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+</section>
 
-    
-        <script src="script.js"></script>
-        <script src="toggle.js"></script>
+<!-- Featured Jobs Section -->
+<section class="sec-space" id="jobs">
+    <div class="obj-width">
+        <div class="section-header">
+            <span class="section-tag">Opportunities</span>
+            <h2>Jobs in Demand</h2>
+            <p>Recently published vacancies from top technology partners</p>
+        </div>
 
-        
-    </body>
+        <!-- Filter Pills -->
+        <div class="category-pills">
+            <a href="jobs.php" class="cat-pill active">Recent Jobs</a>
+            <a href="jobs.php?type=Full+Time" class="cat-pill">Full Time</a>
+            <a href="jobs.php?type=Internship" class="cat-pill">Internships</a>
+            <a href="jobs.php?workplace=Remote" class="cat-pill">Remote Roles</a>
+            <a href="jobs.php?type=Freelancer" class="cat-pill">Freelancer</a>
+        </div>
 
-</html>
+        <!-- Jobs Grid -->
+        <?php if (!empty($featuredJobs)): ?>
+            <div class="row g-4 mb-5">
+                <?php foreach ($featuredJobs as $job): ?>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="job-card">
+                            <div class="job-card-header">
+                                <div class="company-logo-wrap">
+                                    <img src="<?= BASE_URL ?><?= !empty($job['company_logo']) ? htmlspecialchars($job['company_logo']) : 'images/google.png' ?>" alt="Company Logo">
+                                </div>
+                                <div class="job-title-wrap">
+                                    <h3 class="job-card-title">
+                                        <a href="<?= BASE_URL ?>job_details.php?id=<?= $job['id'] ?>"><?= htmlspecialchars($job['title']) ?></a>
+                                    </h3>
+                                    <span class="company-name-text"><?= htmlspecialchars($job['company_name']) ?></span>
+                                </div>
+                            </div>
+
+                            <div class="job-card-badges">
+                                <span class="badge-type"><?= htmlspecialchars($job['job_type']) ?></span>
+                                <span class="badge-workplace"><?= htmlspecialchars($job['workplace_type']) ?></span>
+                                <span class="badge-location"><i class="bi bi-geo-alt"></i> <?= htmlspecialchars($job['location']) ?></span>
+                            </div>
+
+                            <p class="text-muted small mb-3" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                                <?= htmlspecialchars($job['description']) ?>
+                            </p>
+
+                            <div class="job-card-salary"><?= htmlspecialchars($job['salary_range']) ?></div>
+
+                            <div class="job-card-footer">
+                                <span class="job-card-time"><?= time_ago($job['created_at']) ?></span>
+                                <a href="<?= BASE_URL ?>job_details.php?id=<?= $job['id'] ?>" class="btn-view-job">View & Apply</a>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php else: ?>
+            <p class="text-center text-muted">No vacancies posted yet.</p>
+        <?php endif; ?>
+
+        <div class="text-center">
+            <a href="jobs.php" class="btn btn-primary-ugpro rounded-pill px-5 py-3" style="width: auto;">
+                <i class="bi bi-grid-fill me-2"></i> View All Available Job Vacancies
+            </a>
+        </div>
+    </div>
+</section>
+
+<!-- Why Choose Us Section -->
+<section class="sec-space bg-white border-top border-bottom" id="whyChooseUs">
+    <div class="obj-width">
+        <div class="section-header">
+            <span class="section-tag">Our Advantages</span>
+            <h2>Why Choose UgPro?</h2>
+            <p>Designed specifically to empower students and streamline employer hiring</p>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="feature-icon-wrap">
+                        <i class="bi bi-patch-check"></i>
+                    </div>
+                    <h3>Verified Job Listings</h3>
+                    <p>Every position is authenticated by the university career guidance team, preventing spam or counterfeit opportunities.</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="feature-icon-wrap">
+                        <i class="bi bi-cpu"></i>
+                    </div>
+                    <h3>Skill-Based Matching</h3>
+                    <p>Easily discover positions aligned with your academic courses, technical stack, projects, and career aspirations.</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="feature-icon-wrap">
+                        <i class="bi bi-mortarboard"></i>
+                    </div>
+                    <h3>University Support</h3>
+                    <p>Access direct support from academic advisors, mock interviews, and career counseling throughout the placement cycle.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Partner Companies Section -->
+<section class="sec-space" id="ourPartnerCompanies">
+    <div class="obj-width text-center">
+        <div class="section-header">
+            <span class="section-tag">Industry Network</span>
+            <h2>Our Partner Companies</h2>
+            <p>Top multinational enterprises & technology leaders hiring from our university</p>
+        </div>
+
+        <div class="partner-logos-wrap">
+            <div class="partner-logo-item"><img src="<?= BASE_URL ?>images/t1.png" alt="Partner 1"></div>
+            <div class="partner-logo-item"><img src="<?= BASE_URL ?>images/t2.png" alt="Partner 2"></div>
+            <div class="partner-logo-item"><img src="<?= BASE_URL ?>images/t3.png" alt="Partner 3"></div>
+            <div class="partner-logo-item"><img src="<?= BASE_URL ?>images/t5.png" alt="Partner 4"></div>
+            <div class="partner-logo-item"><img src="<?= BASE_URL ?>images/google.png" alt="Partner Google"></div>
+            <div class="partner-logo-item"><img src="<?= BASE_URL ?>images/uber.png" alt="Partner Uber"></div>
+        </div>
+    </div>
+</section>
+
+<!-- Call to Action Banner -->
+<section class="sec-space bg-dark text-white text-center" style="background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%) !important;">
+    <div class="obj-width" style="max-width: 800px;">
+        <h2 class="text-white fw-bold mb-3">Ready to Launch Your Career Journey?</h2>
+        <p class="text-white-50 mb-4 fs-5">Create your student profile today, showcase your portfolio, and apply for life-changing internships and graduate roles.</p>
+        <div class="d-flex flex-wrap justify-content-center gap-3">
+            <a href="signup_undergraduate.php" class="btn btn-success btn-lg rounded-pill px-5">Join as Undergraduate</a>
+            <a href="signup_employer.php" class="btn btn-outline-light btn-lg rounded-pill px-5">Register as Employer</a>
+        </div>
+    </div>
+</section>
+
+<?php require_once __DIR__ . '/includes/footer.php'; ?>

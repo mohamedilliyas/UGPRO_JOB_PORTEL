@@ -1,0 +1,69 @@
+services:
+  # 1. PHP 8.2 + Apache Web Server
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ugpro_web
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    environment:
+      - APP_ENV=development
+      - DB_HOST=db
+      - DB_USER=ugpro_user
+      - DB_PASS=ugpro_pass
+      - DB_NAME=vavuniyauniversity
+      - DB_PORT=3306
+    volumes:
+      - ./:/var/www/html
+      - ./uploads:/var/www/html/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - ugpro_net
+
+  # 2. MariaDB Database (Auto-imports database.sql on first startup)
+  db:
+    image: mariadb:10.11
+    container_name: ugpro_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: vavuniyauniversity
+      MYSQL_USER: ugpro_user
+      MYSQL_PASSWORD: ugpro_pass
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./database.sql:/docker-entrypoint-initdb.d/01_database.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - ugpro_net
+
+  # 3. phpMyAdmin Database GUI (Optional / Convenient)
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: ugpro_pma
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      PMA_HOST: db
+      PMA_USER: ugpro_user
+      PMA_PASSWORD: ugpro_pass
+    depends_on:
+      - db
+    networks:
+      - ugpro_net
+
+volumes:
+  db_data:
+
+networks:
+  ugpro_net:
+    driver: bridge
