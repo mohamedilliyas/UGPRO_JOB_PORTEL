@@ -11,12 +11,15 @@ $jobType = clean_input($_GET['type'] ?? '');
 $workplace = clean_input($_GET['workplace'] ?? '');
 $location = clean_input($_GET['location'] ?? '');
 
-// Fetch Categories
-$categories = [];
-if (is_db_connected()) {
-    $catRes = @$connect->query("SELECT * FROM job_categories ORDER BY name ASC");
-    if ($catRes && $catRes->num_rows > 0) {
-        $categories = $catRes->fetch_all(MYSQLI_ASSOC);
+// Fetch Categories (with session cache)
+$categories = $_SESSION['_ugpro_all_categories'] ?? [];
+if (empty($categories)) {
+    if (is_db_connected()) {
+        $catRes = @$connect->query("SELECT id, name, icon, slug FROM job_categories ORDER BY name ASC");
+        if ($catRes && $catRes->num_rows > 0) {
+            $categories = $catRes->fetch_all(MYSQLI_ASSOC);
+            $_SESSION['_ugpro_all_categories'] = $categories;
+        }
     }
 }
 if (empty($categories)) {

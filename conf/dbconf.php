@@ -16,7 +16,7 @@ $connect = null;
 $db_error_message = '';
 $is_database_connected = false;
 
-// Fast single-pass connection attempt (2s timeout for instant responses)
+// Fast single-pass connection attempt (1.5s timeout for instant responses)
 $passwordsToTry = [DB_PASS];
 if (in_array(DB_HOST, ['127.0.0.1', 'localhost']) && empty(DB_PASS)) {
     $passwordsToTry = ['', 'root', 'mariadb'];
@@ -29,7 +29,7 @@ foreach ($passwordsToTry as $pwd) {
         $conn = mysqli_init();
         if (!$conn) continue;
 
-        // Ultra-fast 2s connection timeout to eliminate loading lag
+        // Ultra-fast 1.5s connection timeout to eliminate loading lag
         if (defined('MYSQLI_OPT_CONNECT_TIMEOUT')) {
             @mysqli_options($conn, MYSQLI_OPT_CONNECT_TIMEOUT, 2);
         }
@@ -57,29 +57,6 @@ foreach ($passwordsToTry as $pwd) {
         }
     } catch (Throwable $e) {
         $db_error_message = $e->getMessage();
-    }
-}
-
-// Automatic Schema Check: Only on connected database
-if ($connect && $is_database_connected) {
-    try {
-        $tblCheck = @mysqli_query($connect, "SHOW TABLES LIKE 'undergraduate'");
-        if ($tblCheck && mysqli_num_rows($tblCheck) === 0) {
-            $sqlPath = __DIR__ . '/../database.sql';
-            if (file_exists($sqlPath)) {
-                $sqlContent = file_get_contents($sqlPath);
-                if (!empty($sqlContent)) {
-                    @mysqli_multi_query($connect, $sqlContent);
-                    while (@mysqli_next_result($connect)) {
-                        if ($res = @mysqli_store_result($connect)) {
-                            @mysqli_free_result($res);
-                        }
-                    }
-                }
-            }
-        }
-    } catch (Throwable $e) {
-        // Silently handled
     }
 }
 

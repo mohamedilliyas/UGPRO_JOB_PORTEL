@@ -4,31 +4,44 @@
  */
 require_once __DIR__ . '/includes/auth.php';
 
-// Fetch Live Statistics
-$stats = get_fallback_stats();
-
-if (is_db_connected()) {
-    $jCount = @$connect->query("SELECT COUNT(*) AS c FROM jobs WHERE status = 'active'")->fetch_assoc()['c'] ?? 12;
-    $eCount = @$connect->query("SELECT COUNT(*) AS c FROM employer")->fetch_assoc()['c'] ?? 8;
-    $sCount = @$connect->query("SELECT COUNT(*) AS c FROM undergraduate")->fetch_assoc()['c'] ?? 150;
-    $aCount = @$connect->query("SELECT COUNT(*) AS c FROM job_applications")->fetch_assoc()['c'] ?? 45;
-    $stats = [
-        'total_jobs' => max(1, (int)$jCount),
-        'total_employers' => max(1, (int)$eCount),
-        'total_students' => max(1, (int)$sCount),
-        'total_applications' => max(1, (int)$aCount)
-    ];
+// Fetch Live Statistics with micro-cache to minimize DB round-trips
+$stats = null;
+if (!empty($_SESSION['_ugpro_stats']) && !empty($_SESSION['_ugpro_stats_time']) && (time() - $_SESSION['_ugpro_stats_time'] < 120)) {
+    $stats = $_SESSION['_ugpro_stats'];
 }
 
-// Fetch Featured Jobs
+if (!$stats) {
+    $stats = get_fallback_stats();
+    if (is_db_connected()) {
+        $statsRes = @$connect->query("SELECT 
+            (SELECT COUNT(*) FROM jobs WHERE status = 'active') AS total_jobs,
+            (SELECT COUNT(*) FROM employer) AS total_employers,
+            (SELECT COUNT(*) FROM undergraduate) AS total_students,
+            (SELECT COUNT(*) FROM job_applications) AS total_applications");
+        
+        if ($statsRes && $row = $statsRes->fetch_assoc()) {
+            $stats = [
+                'total_jobs' => max(1, (int)($row['total_jobs'] ?? 12)),
+                'total_employers' => max(1, (int)($row['total_employers'] ?? 8)),
+                'total_students' => max(1, (int)($row['total_students'] ?? 150)),
+                'total_applications' => max(1, (int)($row['total_applications'] ?? 45))
+            ];
+            $_SESSION['_ugpro_stats'] = $stats;
+            $_SESSION['_ugpro_stats_time'] = time();
+        }
+    }
+}
+
+// Fetch Featured Jobs (single efficient query with limit)
 $featuredJobs = [];
 if (is_db_connected()) {
-    $fjQuery = "SELECT j.*, e.company_name, e.company_logo, c.name AS category_name 
+    $fjQuery = "SELECT j.id, j.title, j.job_type, j.workplace_type, j.location, j.salary_range, j.created_at,
+                       e.company_name, e.company_logo, c.name AS category_name 
                 FROM jobs j 
                 JOIN employer e ON j.employer_id = e.id 
                 LEFT JOIN job_categories c ON j.category_id = c.id 
                 WHERE j.status = 'active' 
-                ORDER BY j.created_at DESC 
+                ORDER BY j.id DESC 
                 LIMIT 6";
     $fjRes = @$connect->query($fjQuery);
     if ($fjRes && $fjRes->num_rows > 0) {
@@ -39,12 +52,15 @@ if (empty($featuredJobs)) {
     $featuredJobs = get_fallback_jobs();
 }
 
-// Fetch Categories for Quick Browse
-$categories = [];
-if (is_db_connected()) {
-    $catRes = @$connect->query("SELECT * FROM job_categories LIMIT 8");
-    if ($catRes && $catRes->num_rows > 0) {
-        $categories = $catRes->fetch_all(MYSQLI_ASSOC);
+// Fetch Categories for Quick Browse (cached in session)
+$categories = $_SESSION['_ugpro_categories'] ?? [];
+if (empty($categories)) {
+    if (is_db_connected()) {
+        $catRes = @$connect->query("SELECT id, name, icon, slug FROM job_categories ORDER BY name ASC LIMIT 8");
+        if ($catRes && $catRes->num_rows > 0) {
+            $categories = $catRes->fetch_all(MYSQLI_ASSOC);
+            $_SESSION['_ugpro_categories'] = $categories;
+        }
     }
 }
 if (empty($categories)) {
