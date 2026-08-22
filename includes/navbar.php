@@ -62,12 +62,30 @@ $currentScript = basename($_SERVER['SCRIPT_NAME']);
             <?php else: ?>
                 <!-- Guest Actions -->
                 <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle signin-nav-link" href="#" role="button" data-bs-toggle="dropdown">Sign In</a>
-                    <ul class="dropdown-menu shadow-sm">
-                        <li><a class="dropdown-item" href="<?= BASE_URL ?>signin_undergraduate.php"><i class="bi bi-mortarboard me-2"></i>As Undergraduate</a></li>
-                        <li><a class="dropdown-item" href="<?= BASE_URL ?>signin_employer.php"><i class="bi bi-building me-2"></i>As Employer</a></li>
+                    <a class="nav-link dropdown-toggle signin-nav-link" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-box-arrow-in-right me-1"></i> Sign In
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end shadow">
+                        <li class="dropdown-header">Choose Portal</li>
+                        <li>
+                            <a class="dropdown-item" href="<?= BASE_URL ?>signin_undergraduate.php">
+                                <i class="bi bi-mortarboard-fill text-success"></i>
+                                <span>Undergraduate Portal</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item" href="<?= BASE_URL ?>signin_employer.php">
+                                <i class="bi bi-building-fill text-primary"></i>
+                                <span>Employer Portal</span>
+                            </a>
+                        </li>
                         <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item text-muted" href="<?= BASE_URL ?>admin/login.php"><i class="bi bi-shield-lock me-2"></i>Admin Login</a></li>
+                        <li>
+                            <a class="dropdown-item text-muted" href="<?= BASE_URL ?>admin/login.php">
+                                <i class="bi bi-shield-lock-fill text-warning"></i>
+                                <span>Admin Login</span>
+                            </a>
+                        </li>
                     </ul>
                 </li>
                 <li>

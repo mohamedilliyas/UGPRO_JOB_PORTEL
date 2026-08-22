@@ -1,6 +1,6 @@
 <?php
 /**
- * Database Connection Configuration & Auto-Migration - UgPro Portal
+ * Ultra-Fast Database Connection Configuration & Auto-Migration - UgPro Portal
  */
 
 require_once __DIR__ . '/../config.php';
@@ -16,22 +16,22 @@ $connect = null;
 $db_error_message = '';
 $is_database_connected = false;
 
-// Attempt database connection with fast timeout and intelligent SSL handling
-$passwordsToTry = [DB_PASS, '', 'mariadb', 'root'];
-$passwordsToTry = array_values(array_unique($passwordsToTry));
+// Fast single-pass connection attempt (2s timeout for instant responses)
+$passwordsToTry = [DB_PASS];
+if (in_array(DB_HOST, ['127.0.0.1', 'localhost']) && empty(DB_PASS)) {
+    $passwordsToTry = ['', 'root', 'mariadb'];
+}
 
 foreach ($passwordsToTry as $pwd) {
     try {
         mysqli_report(MYSQLI_REPORT_OFF);
 
         $conn = mysqli_init();
-        if (!$conn) {
-            continue;
-        }
+        if (!$conn) continue;
 
-        // Set fast connection timeout (4 seconds) so serverless functions don't hang
+        // Ultra-fast 2s connection timeout to eliminate loading lag
         if (defined('MYSQLI_OPT_CONNECT_TIMEOUT')) {
-            @mysqli_options($conn, MYSQLI_OPT_CONNECT_TIMEOUT, 4);
+            @mysqli_options($conn, MYSQLI_OPT_CONNECT_TIMEOUT, 2);
         }
 
         if (DB_SSL_ENABLED) {
@@ -52,19 +52,6 @@ foreach ($passwordsToTry as $pwd) {
             $is_database_connected = true;
             mysqli_set_charset($connect, 'utf8mb4');
             break;
-        }
-
-        // Fallback standard connect if SSL connection didn't connect
-        $connStandard = mysqli_init();
-        if (defined('MYSQLI_OPT_CONNECT_TIMEOUT')) {
-            @mysqli_options($connStandard, MYSQLI_OPT_CONNECT_TIMEOUT, 3);
-        }
-        $connectedStandard = @mysqli_real_connect($connStandard, DB_HOST, DB_USER, $pwd, DB_NAME, (int)DB_PORT);
-        if ($connectedStandard) {
-            $connect = $connStandard;
-            $is_database_connected = true;
-            mysqli_set_charset($connect, 'utf8mb4');
-            break;
         } else {
             $db_error_message = mysqli_connect_error() ?: 'Unable to connect to database host: ' . DB_HOST;
         }
@@ -73,7 +60,7 @@ foreach ($passwordsToTry as $pwd) {
     }
 }
 
-// Automatic Cloud Schema Migration: If connected, check if tables exist; if not, auto-import database.sql
+// Automatic Schema Check: Only on connected database
 if ($connect && $is_database_connected) {
     try {
         $tblCheck = @mysqli_query($connect, "SHOW TABLES LIKE 'undergraduate'");
@@ -90,18 +77,9 @@ if ($connect && $is_database_connected) {
                     }
                 }
             }
-        } else {
-            // Self-healing: Ensure demo account passwords match updated bcrypt hashes
-            $adminHash = '$2y$10$fuzTKOKUXYh4A0cCGm/tYefBIt5nF7xEn/62OL2PXSYYL0GhUsnK6'; // admin123
-            $studentHash = '$2y$10$/ugmhBfdOwEvCe7Nl2ykw.1yvY2QqhxMg/s661DPVcVzCw8kzv3pC'; // student123
-            $employerHash = '$2y$10$s3bsdmDM7srwijQw7AOD6u.lcm9OxfzvB.hxQNUzPXF23VhbIQVHi'; // employer123
-
-            @mysqli_query($connect, "UPDATE admins SET password = '$adminHash' WHERE username = 'admin' AND password NOT LIKE '$2y$10$fuz%'");
-            @mysqli_query($connect, "UPDATE undergraduate SET password = '$studentHash' WHERE email = 'illiyas@vau.ac.lk' AND password NOT LIKE '$2y$10$/ug%'");
-            @mysqli_query($connect, "UPDATE employer SET password = '$employerHash' WHERE email IN ('careers@virtusa.com', 'recruitment@wso2.com', 'careers@ifs.com', 'hr@creativesoftware.com') AND password NOT LIKE '$2y$10$s3b%'");
         }
     } catch (Throwable $e) {
-        // Schema check error silently caught to avoid crashing
+        // Silently handled
     }
 }
 
@@ -136,20 +114,14 @@ function get_pdo() {
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES   => false,
-            PDO::ATTR_TIMEOUT            => 4,
+            PDO::ATTR_TIMEOUT            => 2,
             PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => false,
         ];
         
-        $passwords = [DB_PASS, '', 'mariadb', 'root'];
-        $passwords = array_values(array_unique($passwords));
-        
-        foreach ($passwords as $pwd) {
-            try {
-                $pdo = new PDO($dsn, DB_USER, $pwd, $options);
-                break;
-            } catch (Throwable $e) {
-                // Continue to try next password
-            }
+        try {
+            $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
+        } catch (Throwable $e) {
+            // Silently handled
         }
     }
     return $pdo;
