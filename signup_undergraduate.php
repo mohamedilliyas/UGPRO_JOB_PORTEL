@@ -78,6 +78,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             if ($stmt->execute()) {
                                 $newStudentId = $stmt->insert_id;
                                 set_user_session($newStudentId, 'student', $fullName, $email, $profileImagePath, $course);
+                                // Clear stats cache so new registration is reflected immediately
+                                unset($_SESSION['_ugpro_stats'], $_SESSION['_ugpro_stats_time']);
+
                                 set_flash('success', "Welcome to UgPro, " . htmlspecialchars($fullName) . "! Your student profile has been created.");
                                 header("Location: " . BASE_URL . "profile_undergraduate.php");
                                 exit();

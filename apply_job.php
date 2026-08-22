@@ -111,6 +111,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($insStmt) {
                 $insStmt->bind_param("iiss", $jobId, $studentId, $resumeFilePath, $coverLetter);
                 if ($insStmt->execute()) {
+                    // Clear stats cache so application counter updates immediately
+                    unset($_SESSION['_ugpro_stats'], $_SESSION['_ugpro_stats_time']);
+
                     set_flash('success', 'Your application has been successfully transmitted to the hiring team!');
                 } else {
                     set_flash('danger', 'Failed to submit application: ' . $connect->error);

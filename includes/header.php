@@ -40,6 +40,30 @@ if (!isset($pageTitle)) {
     <!-- Custom CSS -->
     <link rel="stylesheet" href="<?= BASE_URL ?>style.css?v=3.4">
     <style>
+        /* Critical Layout & Navbar Offsets */
+        body {
+            padding-top: 80px !important;
+        }
+        @media (max-width: 768px) {
+            body {
+                padding-top: 70px !important;
+            }
+        }
+        .auth-page-wrap {
+            min-height: calc(100vh - 80px) !important;
+            display: flex !important;
+            align-items: flex-start !important;
+            justify-content: center !important;
+            padding: 2.5rem 1rem 5rem !important;
+            background: linear-gradient(135deg, #eaf4f1 0%, #f8fafc 100%) !important;
+        }
+        .auth-card {
+            margin-top: 0.5rem !important;
+            box-shadow: 0 20px 45px rgba(15, 61, 50, 0.12) !important;
+            border-radius: 20px !important;
+            overflow: hidden !important;
+        }
+
         /* Critical Navbar & Dropdown Styling */
         .nav-menu .dropdown-menu {
             background-color: #ffffff !important;

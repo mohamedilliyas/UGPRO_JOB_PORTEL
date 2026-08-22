@@ -836,30 +836,32 @@ a:hover {
 .auth-page-wrap {
   min-height: calc(100vh - 80px);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 3rem 1rem;
+  padding: 2.5rem 1.5rem 5rem;
   background: linear-gradient(135deg, #eaf4f1 0%, #f8fafc 100%);
 }
 
 .auth-card {
   background: var(--white);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-xl);
+  border-radius: 20px;
+  box-shadow: 0 20px 45px rgba(15, 61, 50, 0.12);
   overflow: hidden;
-  max-width: 960px;
+  max-width: 1040px;
   width: 100%;
   border: 1px solid var(--border-color);
+  margin-top: 0.5rem;
 }
 
 .auth-card-sidebar {
   background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
   color: var(--white);
-  padding: 3.5rem 2.5rem;
+  padding: 3rem 2rem;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   text-align: center;
+  min-height: 100%;
 }
 
 .auth-card-sidebar h2 {
@@ -869,25 +871,29 @@ a:hover {
 }
 
 .auth-card-sidebar p {
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(255, 255, 255, 0.85);
   font-size: 0.95rem;
+  line-height: 1.6;
 }
 
 .auth-sidebar-icon {
-  font-size: 4.5rem;
+  font-size: 4rem;
   color: var(--secondary);
   margin: 1.5rem 0;
+  opacity: 0.9;
 }
 
 .auth-card-body {
-  padding: 3.5rem 3rem;
+  padding: 3rem 2.5rem;
+  background: var(--white);
 }
 
 .auth-form-title {
-  font-size: 1.8rem;
+  font-size: 1.85rem;
   font-weight: 800;
   color: var(--primary);
   margin-bottom: 0.5rem;
+  letter-spacing: -0.5px;
 }
 
 .form-label {

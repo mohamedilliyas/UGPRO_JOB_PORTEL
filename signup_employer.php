@@ -67,6 +67,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $_SESSION['employer_id'] = $newId;
                                 $_SESSION['company_name'] = $companyName;
 
+                                // Clear stats cache so new employer count is reflected immediately
+                                unset($_SESSION['_ugpro_stats'], $_SESSION['_ugpro_stats_time']);
+
                                 set_flash('success', "Welcome to UgPro! Your company account has been created.");
                                 header("Location: " . BASE_URL . "profile_employer.php");
                                 exit();

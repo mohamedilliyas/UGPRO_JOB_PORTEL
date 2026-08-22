@@ -48,6 +48,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt->bind_param("iisssssissssssss", $employerId, $categoryId, $title, $jobType, $workplaceType, $location, $salaryRange, $vacancyCount, $workingHours, $experienceLevel, $educationReq, $description, $responsibilities, $requirements, $benefits, $deadline);
                     if ($stmt->execute()) {
                         $newJobId = $stmt->insert_id;
+                        // Clear stats cache so new job is immediately reflected
+                        unset($_SESSION['_ugpro_stats'], $_SESSION['_ugpro_stats_time']);
+
                         set_flash('success', "Job posting '{$title}' has been successfully published!");
                         header("Location: " . BASE_URL . "job_details.php?id=" . $newJobId);
                         exit();
