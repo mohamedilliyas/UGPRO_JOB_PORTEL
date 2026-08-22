@@ -31,6 +31,6 @@ if (!isset($pageTitle)) {
     <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="<?= BASE_URL ?>style.css?v=2.0">
+    <link rel="stylesheet" href="<?= BASE_URL ?>style.css?v=3.2">
 </head>
 <body>

@@ -65,25 +65,37 @@ $currentScript = basename($_SERVER['SCRIPT_NAME']);
                     <a class="nav-link dropdown-toggle signin-nav-link" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                         <i class="bi bi-box-arrow-in-right me-1"></i> Sign In
                     </a>
-                    <ul class="dropdown-menu dropdown-menu-end shadow">
-                        <li class="dropdown-header">Choose Portal</li>
+                    <ul class="dropdown-menu dropdown-menu-end shadow-lg" style="background: #ffffff !important; min-width: 260px; border-radius: 14px; padding: 10px; border: 1px solid rgba(0,0,0,0.12); box-shadow: 0 16px 40px rgba(0,0,0,0.2) !important; z-index: 99999;">
+                        <li class="dropdown-header" style="color: #6b7280 !important; font-size: 0.75rem; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; padding: 4px 12px 8px;">Sign in to your account</li>
                         <li>
-                            <a class="dropdown-item" href="<?= BASE_URL ?>signin_undergraduate.php">
-                                <i class="bi bi-mortarboard-fill text-success"></i>
-                                <span>Undergraduate Portal</span>
+                            <a class="dropdown-item" href="<?= BASE_URL ?>signin_undergraduate.php" style="color: #111827 !important; font-weight: 600 !important; font-size: 0.95rem; padding: 10px 12px; display: flex !important; align-items: center; gap: 12px; border-radius: 8px; background: transparent; transition: all 0.2s;">
+                                <div style="width: 32px; height: 32px; border-radius: 8px; background: #e8f5e9; display: flex; align-items: center; justify-content: center; color: #2d6a4f; font-size: 1.1rem;">
+                                    <i class="bi bi-mortarboard-fill"></i>
+                                </div>
+                                <div>
+                                    <span style="display: block; color: #111827 !important; font-weight: 600; line-height: 1.2;">As Undergraduate</span>
+                                    <small style="color: #6b7280 !important; font-size: 0.78rem; font-weight: 400;">Student Job Portal</small>
+                                </div>
                             </a>
                         </li>
                         <li>
-                            <a class="dropdown-item" href="<?= BASE_URL ?>signin_employer.php">
-                                <i class="bi bi-building-fill text-primary"></i>
-                                <span>Employer Portal</span>
+                            <a class="dropdown-item" href="<?= BASE_URL ?>signin_employer.php" style="color: #111827 !important; font-weight: 600 !important; font-size: 0.95rem; padding: 10px 12px; display: flex !important; align-items: center; gap: 12px; border-radius: 8px; background: transparent; transition: all 0.2s;">
+                                <div style="width: 32px; height: 32px; border-radius: 8px; background: #eff6ff; display: flex; align-items: center; justify-content: center; color: #2563eb; font-size: 1.1rem;">
+                                    <i class="bi bi-building-fill"></i>
+                                </div>
+                                <div>
+                                    <span style="display: block; color: #111827 !important; font-weight: 600; line-height: 1.2;">As Employer</span>
+                                    <small style="color: #6b7280 !important; font-size: 0.78rem; font-weight: 400;">Hiring & Job Postings</small>
+                                </div>
                             </a>
                         </li>
-                        <li><hr class="dropdown-divider"></li>
+                        <li><hr class="dropdown-divider" style="border-top: 1px solid #e5e7eb; margin: 8px 0;"></li>
                         <li>
-                            <a class="dropdown-item text-muted" href="<?= BASE_URL ?>admin/login.php">
-                                <i class="bi bi-shield-lock-fill text-warning"></i>
-                                <span>Admin Login</span>
+                            <a class="dropdown-item" href="<?= BASE_URL ?>admin/login.php" style="color: #4b5563 !important; font-weight: 500 !important; font-size: 0.9rem; padding: 8px 12px; display: flex !important; align-items: center; gap: 12px; border-radius: 8px; background: transparent;">
+                                <div style="width: 28px; height: 28px; border-radius: 6px; background: #fef3c7; display: flex; align-items: center; justify-content: center; color: #d97706; font-size: 1rem;">
+                                    <i class="bi bi-shield-lock-fill"></i>
+                                </div>
+                                <span style="color: #374151 !important; font-weight: 600;">Admin Login</span>
                             </a>
                         </li>
                     </ul>
