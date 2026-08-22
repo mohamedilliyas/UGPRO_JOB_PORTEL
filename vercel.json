@@ -1,18 +1,8 @@
 {
   "version": 2,
-  "crons": [
-    {
-      "path": "/api/cron.php",
-      "schedule": "*/10 * * * *"
-    }
-  ],
   "builds": [
     {
       "src": "api/index.php",
-      "use": "vercel-php@0.7.2"
-    },
-    {
-      "src": "api/cron.php",
       "use": "vercel-php@0.7.2"
     },
     {
@@ -29,22 +19,6 @@
     }
   ],
   "routes": [
-    {
-      "src": "/cron",
-      "dest": "/api/cron.php"
-    },
-    {
-      "src": "/cron.php",
-      "dest": "/api/cron.php"
-    },
-    {
-      "src": "/api/cron",
-      "dest": "/api/cron.php"
-    },
-    {
-      "src": "/api/cron.php",
-      "dest": "/api/cron.php"
-    },
     {
       "src": "/style.css",
       "dest": "/style.css"
