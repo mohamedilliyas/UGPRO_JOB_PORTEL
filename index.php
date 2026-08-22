@@ -5,29 +5,24 @@
 require_once __DIR__ . '/includes/auth.php';
 
 // Fetch Live Statistics
-$stats = [
-    'total_jobs' => 12,
-    'total_employers' => 8,
-    'total_students' => 150,
-    'total_applications' => 45
-];
+$stats = get_fallback_stats();
 
-if ($connect) {
+if (is_db_connected()) {
     $jCount = @$connect->query("SELECT COUNT(*) AS c FROM jobs WHERE status = 'active'")->fetch_assoc()['c'] ?? 12;
     $eCount = @$connect->query("SELECT COUNT(*) AS c FROM employer")->fetch_assoc()['c'] ?? 8;
     $sCount = @$connect->query("SELECT COUNT(*) AS c FROM undergraduate")->fetch_assoc()['c'] ?? 150;
     $aCount = @$connect->query("SELECT COUNT(*) AS c FROM job_applications")->fetch_assoc()['c'] ?? 45;
     $stats = [
-        'total_jobs' => max(1, $jCount),
-        'total_employers' => max(1, $eCount),
-        'total_students' => max(1, $sCount),
-        'total_applications' => max(1, $aCount)
+        'total_jobs' => max(1, (int)$jCount),
+        'total_employers' => max(1, (int)$eCount),
+        'total_students' => max(1, (int)$sCount),
+        'total_applications' => max(1, (int)$aCount)
     ];
 }
 
 // Fetch Featured Jobs
 $featuredJobs = [];
-if ($connect) {
+if (is_db_connected()) {
     $fjQuery = "SELECT j.*, e.company_name, e.company_logo, c.name AS category_name 
                 FROM jobs j 
                 JOIN employer e ON j.employer_id = e.id 
@@ -35,15 +30,25 @@ if ($connect) {
                 WHERE j.status = 'active' 
                 ORDER BY j.created_at DESC 
                 LIMIT 6";
-    $fjRes = $connect->query($fjQuery);
-    if ($fjRes) $featuredJobs = $fjRes->fetch_all(MYSQLI_ASSOC);
+    $fjRes = @$connect->query($fjQuery);
+    if ($fjRes && $fjRes->num_rows > 0) {
+        $featuredJobs = $fjRes->fetch_all(MYSQLI_ASSOC);
+    }
+}
+if (empty($featuredJobs)) {
+    $featuredJobs = get_fallback_jobs();
 }
 
 // Fetch Categories for Quick Browse
 $categories = [];
-if ($connect) {
-    $catRes = $connect->query("SELECT * FROM job_categories LIMIT 8");
-    if ($catRes) $categories = $catRes->fetch_all(MYSQLI_ASSOC);
+if (is_db_connected()) {
+    $catRes = @$connect->query("SELECT * FROM job_categories LIMIT 8");
+    if ($catRes && $catRes->num_rows > 0) {
+        $categories = $catRes->fetch_all(MYSQLI_ASSOC);
+    }
+}
+if (empty($categories)) {
+    $categories = get_fallback_categories();
 }
 
 $pageTitle = "UgPro - University Career & Job Portal";

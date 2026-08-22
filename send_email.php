@@ -11,11 +11,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $message = clean_input($_POST['message'] ?? '');
 
     if (!empty($name) && $email && !empty($message)) {
-        if ($connect) {
-            $stmt = $connect->prepare("INSERT INTO contact_messages (name, email, subject, message, status) VALUES (?, ?, ?, ?, 'unread')");
-            $stmt->bind_param("ssss", $name, $email, $subject, $message);
-            $stmt->execute();
-            $stmt->close();
+        if (is_db_connected()) {
+            try {
+                $stmt = @$connect->prepare("INSERT INTO contact_messages (name, email, subject, message, status) VALUES (?, ?, ?, ?, 'unread')");
+                if ($stmt) {
+                    $stmt->bind_param("ssss", $name, $email, $subject, $message);
+                    $stmt->execute();
+                    $stmt->close();
+                }
+            } catch (Throwable $e) {
+                // Continue
+            }
         }
 
         // Try standard mail if configured

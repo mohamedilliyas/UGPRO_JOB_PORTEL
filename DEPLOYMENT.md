@@ -1,21 +1,19 @@
-# UgPro University Job Portal - Deployment Guide
+# UgPro University Job Portal - Deployment & Cloud Database Guide
 
-This guide provides step-by-step instructions for deploying the **UgPro University Job & Career Portal** across local development environments, cPanel shared hosting, Linux Cloud VPS, and Docker environments.
+This guide provides step-by-step instructions for deploying the **UgPro University Job & Career Portal** across Vercel Serverless, Cloud MySQL providers, Keep-Alive Cron Jobs, local development environments, cPanel shared hosting, and Linux Cloud VPS.
 
 ---
 
-## 1. System Requirements
+## 1. System Requirements & Architecture
 
 - **PHP**: 7.4, 8.0, 8.1, 8.2+ (with `mysqli`, `pdo_mysql`, `mbstring`, `fileinfo`, `openssl` extensions enabled)
-- **Database**: MySQL 5.7+ or MariaDB 10.3+
-- **Web Server**: Apache 2.4+ (with `mod_rewrite`) or Nginx
-- **HTTPS/SSL**: Recommended for production
+- **Database**: MySQL 5.7+, MariaDB 10.3+, or TiDB Serverless Cloud MySQL
+- **Web Server**: Vercel Serverless / Apache 2.4+ / Nginx
+- **HTTPS/SSL**: Enabled by default on Vercel
 
 ---
 
-## 2. Default Seed Credentials (For Testing)
-
-After importing `database.sql`, the following demo accounts are available:
+## 2. Default Seed Demo Credentials
 
 | Role | Username / Email | Password | Dashboard Link |
 | :--- | :--- | :--- | :--- |
@@ -26,134 +24,132 @@ After importing `database.sql`, the following demo accounts are available:
 
 ---
 
-## 3. Option A: Local Deployment (XAMPP / WAMP)
+## 3. Vercel Deployment & Free Cloud MySQL Setup
 
-1. **Start Services**:
-   - Open XAMPP Control Panel.
-   - Start **Apache** and **MySQL** modules.
+### Step 1: Create a Free Permanent Cloud MySQL Database
 
-2. **Database Import**:
-   - Open browser and navigate to `http://localhost/phpmyadmin/`.
-   - Click **Import** in the top navigation bar.
-   - Choose `database.sql` from this project folder and click **Import**.
-   - *(Alternatively, create database `vavuniyauniversity` and import the SQL file)*.
+Choose any of these reliable, permanently free cloud MySQL services:
 
-3. **Place Files in Web Root**:
-   - Copy or symlink this folder into `C:\xampp\htdocs\UGPRO_JOB_PORTEL`.
+#### Option A: TiDB Serverless (Recommended — 100% Free Forever, 5GB storage, Instant SSL)
+1. Sign up at [https://tidbcloud.com/](https://tidbcloud.com/).
+2. Create a free **Serverless Cluster**.
+3. Under **Overview**, click **Connect** -> Choose **General Connection String / URI**.
+4. Copy the connection URI:
+   ```
+   mysql://<user>:<password>@gateway01.<region>.prod.aws.tidbcloud.com:4000/<dbname>?ssl-mode=VERIFY_IDENTITY
+   ```
+5. In TiDB Cloud SQL Editor, import or paste the schema from [`database.sql`](file:///d:/Projects/UGPRO_JOB_PORTEL/database.sql).
 
-4. **Launch Application**:
-   - Open your browser and navigate to:
-     ```
-     http://localhost/UGPRO_JOB_PORTEL/
-     ```
+#### Option B: Clever Cloud MySQL (Free Add-on)
+1. Sign up at [https://www.clever-cloud.com/](https://www.clever-cloud.com/).
+2. Create a free MySQL database add-on.
+3. Copy the `MYSQL_ADDON_URI` or Host, Port, Database, User, Password.
 
----
-
-## 4. Option B: Live cPanel Shared Hosting Deployment
-
-1. **Create MySQL Database & User**:
-   - Log into cPanel.
-   - Go to **MySQL® Databases**.
-   - Create a new database (e.g. `yourcpanel_ugpro`).
-   - Create a new user with a strong password and assign all privileges to the database.
-
-2. **Import Database Schema**:
-   - In cPanel, open **phpMyAdmin**.
-   - Select your new database and click **Import**.
-   - Upload and execute `database.sql`.
-
-3. **Upload Files**:
-   - In cPanel, open **File Manager**.
-   - Navigate to `public_html` (or subfolder/subdomain folder).
-   - Upload all project files.
-
-4. **Configure Database Credentials**:
-   - Open `conf/dbconf.php` or `config.php` and set:
-     ```php
-     define('DB_HOST', 'localhost');
-     define('DB_USER', 'yourcpanel_dbuser');
-     define('DB_PASS', 'your_strong_password');
-     define('DB_NAME', 'yourcpanel_ugpro');
-     ```
-
-5. **Set Upload Directory Permissions**:
-   - Ensure the following directories have write permissions (`755` or `775`):
-     - `uploads/`
-     - `uploads/profiles/`
-     - `uploads/logos/`
-     - `uploads/resumes/`
+#### Option C: Aiven Cloud MySQL
+1. Create a MySQL service in Aiven Console.
+2. Copy the Service URI (`mysql://avnadmin:password@host:port/defaultdb?ssl-mode=REQUIRED`).
 
 ---
 
-## 5. Option C: Linux Cloud VPS (Ubuntu 22.04 / 24.04 LTS)
+### Step 2: Configure Environment Variables in Vercel
 
-### Step 1: Install LAMP Stack
-```bash
-sudo apt update && sudo apt upgrade -y
-sudo apt install -y apache2 mariadb-server php php-mysql php-mbstring php-xml php-curl php-zip libapache2-mod-php
+1. Go to your **Vercel Project Dashboard** -> **Settings** -> **Environment Variables**.
+2. Add the database connection variable (either full URI or individual keys):
+
+| Variable Name | Value Example | Description |
+| :--- | :--- | :--- |
+| `DATABASE_URL` | `mysql://user:pass@host:3306/dbname` | Full MySQL connection URI |
+| *or* `DB_HOST` | `gateway01.region.tidbcloud.com` | Database Hostname |
+| *or* `DB_USER` | `xxxx.root` | Database Username |
+| *or* `DB_PASS` | `YourStrongPassword` | Database Password |
+| *or* `DB_NAME` | `vavuniyauniversity` | Database Name |
+| *or* `DB_PORT` | `3306` or `4000` | Database Port |
+| `APP_ENV` | `production` | Suppresses raw server errors |
+| `CRON_SECRET` | `ugpro_cron_keepalive_secret_2026` | Keep-alive auth secret |
+
+3. Click **Save** and trigger a **Redeploy** on Vercel.
+
+---
+
+## 4. Automated Keep-Alive Cron Job Setup
+
+Free cloud database instances sleep after 5 to 15 minutes of inactivity. UgPro includes a dedicated keep-alive cron job to keep your database active and healthy 24/7.
+
+### 1. Automated Vercel Cron Job
+`vercel.json` is pre-configured with:
+```json
+{
+  "crons": [
+    {
+      "path": "/api/cron.php",
+      "schedule": "*/10 * * * *"
+    }
+  ]
+}
+```
+Vercel will trigger `/api/cron.php` automatically every 10 minutes from its global edge network.
+
+### 2. External Backup Cron Monitoring (cron-job.org or UptimeRobot)
+To add a secondary free 24/7 keep-alive pinger:
+1. Sign up at [https://cron-job.org/](https://cron-job.org/) (100% Free).
+2. Click **Create Cronjob**.
+3. **Title**: `UgPro DB Keep-Alive`
+4. **URL**:
+   ```
+   https://ugpro-job-portel.vercel.app/api/cron.php?secret=ugpro_cron_keepalive_secret_2026
+   ```
+5. **Schedule**: Every `10 minutes` (or `5 minutes`).
+6. Click **Save**.
+
+### 3. Testing Cron Keep-Alive Output
+Access `https://ugpro-job-portel.vercel.app/cron.php` in your browser. It returns:
+```json
+{
+  "success": true,
+  "status": "HEALTHY",
+  "message": "Database keep-alive ping successful. Connection is active.",
+  "timestamp": "2026-08-22T06:30:00+00:00",
+  "metrics": {
+    "total_execution_ms": 14.2,
+    "db_latency_ms": 9.8,
+    "cleaned_sessions": 0
+  },
+  "database": {
+    "connected": true,
+    "host": "...",
+    "database": "...",
+    "port": 3306
+  }
+}
 ```
 
-### Step 2: Configure MariaDB Database
-```bash
-sudo mysql -u root
-```
-```sql
-CREATE DATABASE vavuniyauniversity CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'ugpro_user'@'localhost' IDENTIFIED BY 'StrongSecurePassword123!';
-GRANT ALL PRIVILEGES ON vavuniyauniversity.* TO 'ugpro_user'@'localhost';
-FLUSH PRIVILEGES;
-EXIT;
-```
+---
 
-Import schema:
+## 5. High-Availability Graceful Fallback Mode
+
+If your remote database is waking up, sleeping, or temporarily offline:
+- **Zero Crashes**: All views (`index.php`, `jobs.php`, `browse_candidates.php`, `job_details.php`) automatically serve high-quality cached seed data.
+- **Demo Logins**: Student, Employer, and Admin demo accounts continue to work seamlessly in testing mode.
+- **Automatic Recovery**: As soon as the cloud database responds, the system resumes live queries without requiring any server restarts.
+
+---
+
+## 6. Option B: Local Deployment (XAMPP / WAMP)
+
+1. Start Apache & MySQL in XAMPP Control Panel.
+2. Open `http://localhost/phpmyadmin/` -> Import `database.sql`.
+3. Place project files into `C:\xampp\htdocs\UGPRO_JOB_PORTEL`.
+4. Open `http://localhost/UGPRO_JOB_PORTEL/`.
+
+---
+
+## 7. Option C: Linux Cloud VPS (Ubuntu 22.04 / 24.04 LTS)
+
 ```bash
+sudo apt update && sudo apt install -y apache2 mariadb-server php php-mysql php-mbstring php-xml php-curl php-zip
+sudo mysql -u root -e "CREATE DATABASE vavuniyauniversity CHARACTER SET utf8mb4; GRANT ALL ON vavuniyauniversity.* TO 'ugpro_user'@'localhost' IDENTIFIED BY 'StrongPass123!';"
 sudo mysql -u ugpro_user -p vavuniyauniversity < /var/www/html/database.sql
-```
-
-### Step 3: Clone / Copy Codebase to `/var/www/html/ugpro`
-```bash
 sudo cp -r /path/to/UGPRO_JOB_PORTEL /var/www/html/ugpro
 sudo chown -R www-data:www-data /var/www/html/ugpro/uploads
-sudo chmod -R 775 /var/www/html/ugpro/uploads
+sudo a2enmod rewrite && sudo systemctl restart apache2
 ```
-
-### Step 4: Configure VirtualHost
-Create `/etc/apache2/sites-available/ugpro.conf`:
-```apache
-<VirtualHost *:80>
-    ServerName jobs.vau.ac.lk
-    DocumentRoot /var/www/html/ugpro
-
-    <Directory /var/www/html/ugpro>
-        Options -Indexes +FollowSymLinks
-        AllowOverride All
-        Require all granted
-    </Directory>
-
-    ErrorLog ${APACHE_LOG_DIR}/ugpro_error.log
-    CustomLog ${APACHE_LOG_DIR}/ugpro_access.log combined
-</VirtualHost>
-```
-
-Enable site and restart Apache:
-```bash
-sudo a2ensite ugpro.conf
-sudo a2enmod rewrite
-sudo systemctl restart apache2
-```
-
-### Step 5: Enable Free SSL with Let's Encrypt
-```bash
-sudo apt install -y certbot python3-certbot-apache
-sudo certbot --apache -d jobs.vau.ac.lk
-```
-
----
-
-## 6. Production Security Checklist
-
-- [x] **Password Hashing**: Implemented with industry-standard bcrypt (`PASSWORD_BCRYPT`).
-- [x] **SQL Injection Prevention**: All queries parameterized using prepared statements.
-- [x] **File Upload Security**: Strict MIME-type and extension whitelisting (PDF for resumes, PNG/JPG/WebP for images) with unique random hashes to prevent script execution.
-- [x] **XSS Mitigation**: Contextual sanitization (`htmlspecialchars()`) across all user outputs.
-- [x] **Error Suppression**: `APP_ENV` set to `production` suppresses raw system exceptions from end-users.

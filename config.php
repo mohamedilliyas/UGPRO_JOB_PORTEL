@@ -19,7 +19,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 // Environment settings
-define('APP_ENV', getenv('APP_ENV') ?: 'development'); // 'development' or 'production'
+define('APP_ENV', getenv('APP_ENV') ?: 'production'); // 'development' or 'production'
 
 if (APP_ENV === 'development') {
     error_reporting(E_ALL);
@@ -29,24 +29,37 @@ if (APP_ENV === 'development') {
     ini_set('display_errors', '0');
 }
 
-// Check for single DATABASE_URL or MYSQL_URL (e.g. from Aiven Service URI)
-$dbUrl = getenv('DATABASE_URL') ?: getenv('MYSQL_URL') ?: getenv('SERVICE_URI');
+// Check for single DATABASE_URL or aliases (e.g. from TiDB, Aiven, Clever Cloud, Render)
+$dbUrl = getenv('DATABASE_URL') 
+    ?: getenv('MYSQL_URL') 
+    ?: getenv('SERVICE_URI') 
+    ?: getenv('CLEARDB_DATABASE_URL') 
+    ?: getenv('JAWSDB_URL') 
+    ?: getenv('TIDB_URL')
+    ?: getenv('DB_URL');
 
 $dbHost = '127.0.0.1';
 $dbUser = 'root';
 $dbPass = '';
 $dbName = 'vavuniyauniversity';
 $dbPort = 3306;
+$dbSsl = true;
 
 if (!empty($dbUrl)) {
     $parsed = parse_url($dbUrl);
     if ($parsed) {
         $dbHost = $parsed['host'] ?? $dbHost;
-        $dbUser = $parsed['user'] ?? $dbUser;
-        $dbPass = $parsed['pass'] ?? $dbPass;
+        $dbUser = isset($parsed['user']) ? urldecode($parsed['user']) : $dbUser;
+        $dbPass = isset($parsed['pass']) ? urldecode($parsed['pass']) : $dbPass;
         $dbPort = $parsed['port'] ?? $dbPort;
         if (!empty($parsed['path'])) {
             $dbName = trim($parsed['path'], '/');
+        }
+        if (isset($parsed['query'])) {
+            parse_str($parsed['query'], $queryParams);
+            if (isset($queryParams['ssl-mode']) && $queryParams['ssl-mode'] === 'DISABLED') {
+                $dbSsl = false;
+            }
         }
     }
 } else {
@@ -55,6 +68,7 @@ if (!empty($dbUrl)) {
     $dbPass = getenv('DB_PASS') !== false ? getenv('DB_PASS') : $dbPass;
     $dbName = getenv('DB_NAME') ?: $dbName;
     $dbPort = getenv('DB_PORT') ?: $dbPort;
+    $dbSsl = getenv('DB_SSL') !== 'false';
 }
 
 // Database Credentials Constants
@@ -63,6 +77,10 @@ define('DB_USER', $dbUser);
 define('DB_PASS', $dbPass);
 define('DB_NAME', $dbName);
 define('DB_PORT', (int)$dbPort);
+define('DB_SSL_ENABLED', $dbSsl);
+
+// Cron Secret for automated keep-alive pingers
+define('CRON_SECRET', getenv('CRON_SECRET') ?: 'ugpro_cron_keepalive_secret_2026');
 
 // Application Meta
 define('APP_NAME', 'UgPro - University Career & Job Portal');

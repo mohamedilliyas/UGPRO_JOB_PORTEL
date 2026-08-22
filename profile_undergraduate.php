@@ -25,15 +25,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
     $linkedin = clean_input($_POST['linkedin'] ?? '');
     $portfolio = clean_input($_POST['portfolio'] ?? '');
 
-    // Fetch current image and resume to preserve if not updated
-    $currStmt = $connect->prepare("SELECT profile_image, resume_file FROM undergraduate WHERE id = ?");
-    $currStmt->bind_param("i", $studentId);
-    $currStmt->execute();
-    $currRow = $currStmt->get_result()->fetch_assoc();
-    $currStmt->close();
+    $profileImage = 'images/fl-3.png';
+    $resumeFile = null;
 
-    $profileImage = $currRow['profile_image'] ?? 'images/fl-3.png';
-    $resumeFile = $currRow['resume_file'] ?? null;
+    if (is_db_connected()) {
+        try {
+            $currStmt = @$connect->prepare("SELECT profile_image, resume_file FROM undergraduate WHERE id = ?");
+            if ($currStmt) {
+                $currStmt->bind_param("i", $studentId);
+                $currStmt->execute();
+                $currRow = $currStmt->get_result()->fetch_assoc();
+                $currStmt->close();
+                $profileImage = $currRow['profile_image'] ?? 'images/fl-3.png';
+                $resumeFile = $currRow['resume_file'] ?? null;
+            }
+        } catch (Throwable $e) {
+            // Keep default
+        }
+    }
 
     // Handle Profile Image Replacement
     if (isset($_FILES['profile_image']) && $_FILES['profile_image']['error'] === UPLOAD_ERR_OK) {
@@ -62,65 +71,97 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
     if (!empty($newPassword)) {
         if (strlen($newPassword) >= 6) {
             $hashed = password_hash($newPassword, PASSWORD_BCRYPT);
-            $passwordSql = ", password = '" . mysqli_real_escape_string($connect, $hashed) . "'";
+            if (is_db_connected()) {
+                $passwordSql = ", password = '" . mysqli_real_escape_string($connect, $hashed) . "'";
+            }
         } else {
             $updateErrors[] = "New password must be at least 6 characters.";
         }
     }
 
     if (empty($updateErrors)) {
-        $upStmt = $connect->prepare("UPDATE undergraduate SET full_name = ?, phone = ?, faculty = ?, course = ?, graduation_year = ?, reg_no = ?, bio = ?, skills = ?, projects = ?, github = ?, linkedin = ?, portfolio_url = ?, profile_image = ?, resume_file = ? {$passwordSql} WHERE id = ?");
-        $upStmt->bind_param("ssssisssssssssi", $fullName, $phone, $faculty, $course, $gradYear, $regNo, $bio, $skills, $projects, $github, $linkedin, $portfolio, $profileImage, $resumeFile, $studentId);
-
-        if ($upStmt->execute()) {
-            set_user_session($studentId, 'student', $fullName, $student['email'] ?? $_SESSION['user_email'], $profileImage, $course);
-            $updateSuccess = "Your profile has been updated successfully!";
-            $activeTab = 'overview';
+        if (is_db_connected()) {
+            try {
+                $upStmt = @$connect->prepare("UPDATE undergraduate SET full_name = ?, phone = ?, faculty = ?, course = ?, graduation_year = ?, reg_no = ?, bio = ?, skills = ?, projects = ?, github = ?, linkedin = ?, portfolio_url = ?, profile_image = ?, resume_file = ? {$passwordSql} WHERE id = ?");
+                if ($upStmt) {
+                    $upStmt->bind_param("ssssisssssssssi", $fullName, $phone, $faculty, $course, $gradYear, $regNo, $bio, $skills, $projects, $github, $linkedin, $portfolio, $profileImage, $resumeFile, $studentId);
+                    if ($upStmt->execute()) {
+                        set_user_session($studentId, 'student', $fullName, $_SESSION['user_email'] ?? '', $profileImage, $course);
+                        $updateSuccess = "Your profile has been updated successfully!";
+                        $activeTab = 'overview';
+                    } else {
+                        $updateErrors[] = "Database update error: " . $connect->error;
+                    }
+                    $upStmt->close();
+                }
+            } catch (Throwable $e) {
+                $updateErrors[] = "Update failed: " . $e->getMessage();
+            }
         } else {
-            $updateErrors[] = "Database update error: " . $connect->error;
+            set_user_session($studentId, 'student', $fullName, $_SESSION['user_email'] ?? '', $profileImage, $course);
+            $updateSuccess = "Profile updated (demo simulated mode).";
+            $activeTab = 'overview';
         }
-        $upStmt->close();
     }
 }
 
 // Fetch fresh student profile data
-$stmt = $connect->prepare("SELECT * FROM undergraduate WHERE id = ?");
-$stmt->bind_param("i", $studentId);
-$stmt->execute();
-$student = $stmt->get_result()->fetch_assoc();
-$stmt->close();
+$student = null;
+$applications = [];
+$savedJobs = [];
 
-if (!$student) {
-    clear_user_session();
-    header("Location: " . BASE_URL . "signin_undergraduate.php");
-    exit();
+if (is_db_connected()) {
+    try {
+        $stmt = @$connect->prepare("SELECT * FROM undergraduate WHERE id = ?");
+        if ($stmt) {
+            $stmt->bind_param("i", $studentId);
+            $stmt->execute();
+            $student = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+        }
+
+        // Fetch Student Applications
+        $appQuery = "SELECT a.*, j.title AS job_title, j.job_type, j.location AS job_location, j.salary_range, e.company_name, e.company_logo 
+                     FROM job_applications a 
+                     JOIN jobs j ON a.job_id = j.id 
+                     JOIN employer e ON j.employer_id = e.id 
+                     WHERE a.undergraduate_id = ? 
+                     ORDER BY a.applied_at DESC";
+        $appStmt = @$connect->prepare($appQuery);
+        if ($appStmt) {
+            $appStmt->bind_param("i", $studentId);
+            $appStmt->execute();
+            $applications = $appStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $appStmt->close();
+        }
+
+        // Fetch Saved Jobs
+        $savedQuery = "SELECT s.id AS saved_id, s.created_at AS saved_at, j.*, e.company_name, e.company_logo 
+                       FROM saved_jobs s 
+                       JOIN jobs j ON s.job_id = j.id 
+                       JOIN employer e ON j.employer_id = e.id 
+                       WHERE s.undergraduate_id = ? 
+                       ORDER BY s.created_at DESC";
+        $savedStmt = @$connect->prepare($savedQuery);
+        if ($savedStmt) {
+            $savedStmt->bind_param("i", $studentId);
+            $savedStmt->execute();
+            $savedJobs = $savedStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $savedStmt->close();
+        }
+    } catch (Throwable $e) {
+        $student = null;
+    }
 }
 
-// Fetch Student Applications
-$appQuery = "SELECT a.*, j.title AS job_title, j.job_type, j.location AS job_location, j.salary_range, e.company_name, e.company_logo 
-             FROM job_applications a 
-             JOIN jobs j ON a.job_id = j.id 
-             JOIN employer e ON j.employer_id = e.id 
-             WHERE a.undergraduate_id = ? 
-             ORDER BY a.applied_at DESC";
-$appStmt = $connect->prepare($appQuery);
-$appStmt->bind_param("i", $studentId);
-$appStmt->execute();
-$applications = $appStmt->get_result()->fetch_all(MYSQLI_ASSOC);
-$appStmt->close();
-
-// Fetch Saved Jobs
-$savedQuery = "SELECT s.id AS saved_id, s.created_at AS saved_at, j.*, e.company_name, e.company_logo 
-               FROM saved_jobs s 
-               JOIN jobs j ON s.job_id = j.id 
-               JOIN employer e ON j.employer_id = e.id 
-               WHERE s.undergraduate_id = ? 
-               ORDER BY s.created_at DESC";
-$savedStmt = $connect->prepare($savedQuery);
-$savedStmt->bind_param("i", $studentId);
-$savedStmt->execute();
-$savedJobs = $savedStmt->get_result()->fetch_all(MYSQLI_ASSOC);
-$savedStmt->close();
+if (!$student) {
+    // Provide fallback student model
+    $fallbackCandidates = get_fallback_candidates();
+    $student = $fallbackCandidates[0];
+    $student['full_name'] = $_SESSION['user_name'] ?? $student['full_name'];
+    $student['email'] = $_SESSION['user_email'] ?? $student['email'];
+    $student['profile_image'] = $_SESSION['user_avatar'] ?? $student['profile_image'];
+}
 
 // Skill tags array helper
 $skillsList = array_filter(array_map('trim', explode(',', $student['skills'] ?? '')));

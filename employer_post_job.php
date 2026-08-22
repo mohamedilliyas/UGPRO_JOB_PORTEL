@@ -10,11 +10,14 @@ $errors = [];
 
 // Fetch job categories for dropdown
 $categories = [];
-if ($connect) {
-    $catResult = $connect->query("SELECT * FROM job_categories ORDER BY name ASC");
+if (is_db_connected()) {
+    $catResult = @$connect->query("SELECT * FROM job_categories ORDER BY name ASC");
     if ($catResult) {
         $categories = $catResult->fetch_all(MYSQLI_ASSOC);
     }
+}
+if (empty($categories)) {
+    $categories = get_fallback_categories();
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -38,18 +41,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($description)) $errors[] = "Job description is required.";
 
     if (empty($errors)) {
-        $stmt = $connect->prepare("INSERT INTO jobs (employer_id, category_id, title, job_type, workplace_type, location, salary_range, vacancy_count, working_hours, experience_level, education_req, description, responsibilities, requirements, benefits, deadline, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')");
-        $stmt->bind_param("iisssssissssssss", $employerId, $categoryId, $title, $jobType, $workplaceType, $location, $salaryRange, $vacancyCount, $workingHours, $experienceLevel, $educationReq, $description, $responsibilities, $requirements, $benefits, $deadline);
-
-        if ($stmt->execute()) {
-            $newJobId = $stmt->insert_id;
-            set_flash('success', "Job posting '{$title}' has been successfully published!");
-            header("Location: " . BASE_URL . "job_details.php?id=" . $newJobId);
-            exit();
+        if (is_db_connected()) {
+            try {
+                $stmt = @$connect->prepare("INSERT INTO jobs (employer_id, category_id, title, job_type, workplace_type, location, salary_range, vacancy_count, working_hours, experience_level, education_req, description, responsibilities, requirements, benefits, deadline, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')");
+                if ($stmt) {
+                    $stmt->bind_param("iisssssissssssss", $employerId, $categoryId, $title, $jobType, $workplaceType, $location, $salaryRange, $vacancyCount, $workingHours, $experienceLevel, $educationReq, $description, $responsibilities, $requirements, $benefits, $deadline);
+                    if ($stmt->execute()) {
+                        $newJobId = $stmt->insert_id;
+                        set_flash('success', "Job posting '{$title}' has been successfully published!");
+                        header("Location: " . BASE_URL . "job_details.php?id=" . $newJobId);
+                        exit();
+                    } else {
+                        $errors[] = "Failed to post job: " . $connect->error;
+                    }
+                    $stmt->close();
+                }
+            } catch (Throwable $e) {
+                $errors[] = "Database error: " . $e->getMessage();
+            }
         } else {
-            $errors[] = "Failed to post job: " . $connect->error;
+            set_flash('success', "Demo Mode: Job posting '{$title}' received (simulated publication).");
+            header("Location: " . BASE_URL . "jobs.php");
+            exit();
         }
-        $stmt->close();
     }
 }
 

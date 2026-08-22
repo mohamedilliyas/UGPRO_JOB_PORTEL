@@ -12,20 +12,47 @@ if ($jobId <= 0) {
 }
 
 // Increment views count
-if ($connect) {
+if (is_db_connected()) {
     @$connect->query("UPDATE jobs SET views_count = views_count + 1 WHERE id = {$jobId}");
 }
 
 // Fetch Job with Employer Details
-$stmt = $connect->prepare("SELECT j.*, e.company_name, e.company_logo, e.website AS company_website, e.location AS company_location, e.industry, e.about AS company_about, c.name AS category_name 
-                           FROM jobs j 
-                           JOIN employer e ON j.employer_id = e.id 
-                           LEFT JOIN job_categories c ON j.category_id = c.id 
-                           WHERE j.id = ?");
-$stmt->bind_param("i", $jobId);
-$stmt->execute();
-$job = $stmt->get_result()->fetch_assoc();
-$stmt->close();
+$job = null;
+if (is_db_connected()) {
+    try {
+        $stmt = @$connect->prepare("SELECT j.*, e.company_name, e.company_logo, e.website AS company_website, e.location AS company_location, e.industry, e.about AS company_about, c.name AS category_name 
+                                   FROM jobs j 
+                                   JOIN employer e ON j.employer_id = e.id 
+                                   LEFT JOIN job_categories c ON j.category_id = c.id 
+                                   WHERE j.id = ?");
+        if ($stmt) {
+            $stmt->bind_param("i", $jobId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result) {
+                $job = $result->fetch_assoc();
+            }
+            $stmt->close();
+        }
+    } catch (Throwable $e) {
+        $job = null;
+    }
+}
+
+if (!$job) {
+    // Check fallback jobs
+    $fallbackJobs = get_fallback_jobs();
+    foreach ($fallbackJobs as $fj) {
+        if ($fj['id'] == $jobId) {
+            $job = $fj;
+            break;
+        }
+    }
+    // If not matching ID, use the first fallback job
+    if (!$job && !empty($fallbackJobs)) {
+        $job = $fallbackJobs[0];
+    }
+}
 
 if (!$job) {
     set_flash('danger', 'The requested job posting was not found.');
@@ -37,50 +64,85 @@ if (!$job) {
 $hasApplied = false;
 $applicationData = null;
 $isSaved = false;
+$studentResume = null;
 
-if (is_student()) {
+if (is_student() && is_db_connected()) {
     $studentId = $_SESSION['user_id'];
     
-    // Check application
-    $appCheck = $connect->prepare("SELECT * FROM job_applications WHERE job_id = ? AND undergraduate_id = ?");
-    $appCheck->bind_param("ii", $jobId, $studentId);
-    $appCheck->execute();
-    $appRes = $appCheck->get_result();
-    if ($appRes->num_rows > 0) {
-        $hasApplied = true;
-        $applicationData = $appRes->fetch_assoc();
-    }
-    $appCheck->close();
+    try {
+        // Check application
+        $appCheck = @$connect->prepare("SELECT * FROM job_applications WHERE job_id = ? AND undergraduate_id = ?");
+        if ($appCheck) {
+            $appCheck->bind_param("ii", $jobId, $studentId);
+            $appCheck->execute();
+            $appRes = $appCheck->get_result();
+            if ($appRes && $appRes->num_rows > 0) {
+                $hasApplied = true;
+                $applicationData = $appRes->fetch_assoc();
+            }
+            $appCheck->close();
+        }
 
-    // Check bookmark
-    $saveCheck = $connect->prepare("SELECT id FROM saved_jobs WHERE job_id = ? AND undergraduate_id = ?");
-    $saveCheck->bind_param("ii", $jobId, $studentId);
-    $saveCheck->execute();
-    if ($saveCheck->get_result()->num_rows > 0) {
-        $isSaved = true;
-    }
-    $saveCheck->close();
+        // Check bookmark
+        $saveCheck = @$connect->prepare("SELECT id FROM saved_jobs WHERE job_id = ? AND undergraduate_id = ?");
+        if ($saveCheck) {
+            $saveCheck->bind_param("ii", $jobId, $studentId);
+            $saveCheck->execute();
+            $saveRes = $saveCheck->get_result();
+            if ($saveRes && $saveRes->num_rows > 0) {
+                $isSaved = true;
+            }
+            $saveCheck->close();
+        }
 
-    // Fetch student's profile resume
-    $stuResumeStmt = $connect->prepare("SELECT resume_file FROM undergraduate WHERE id = ?");
-    $stuResumeStmt->bind_param("i", $studentId);
-    $stuResumeStmt->execute();
-    $studentResume = $stuResumeStmt->get_result()->fetch_assoc()['resume_file'] ?? null;
-    $stuResumeStmt->close();
+        // Fetch student's profile resume
+        $stuResumeStmt = @$connect->prepare("SELECT resume_file FROM undergraduate WHERE id = ?");
+        if ($stuResumeStmt) {
+            $stuResumeStmt->bind_param("i", $studentId);
+            $stuResumeStmt->execute();
+            $stuRes = $stuResumeStmt->get_result();
+            if ($stuRes) {
+                $studentResume = $stuRes->fetch_assoc()['resume_file'] ?? null;
+            }
+            $stuResumeStmt->close();
+        }
+    } catch (Throwable $e) {
+        // Silently continue
+    }
 }
 
 // Fetch Similar Jobs
-$simQuery = "SELECT j.*, e.company_name, e.company_logo 
-             FROM jobs j 
-             JOIN employer e ON j.employer_id = e.id 
-             WHERE j.id != ? AND (j.category_id = ? OR j.job_type = ?) AND j.status = 'active' 
-             LIMIT 3";
-$simStmt = $connect->prepare($simQuery);
-$catIdParam = $job['category_id'] ?? 0;
-$simStmt->bind_param("iis", $jobId, $catIdParam, $job['job_type']);
-$simStmt->execute();
-$similarJobs = $simStmt->get_result()->fetch_all(MYSQLI_ASSOC);
-$simStmt->close();
+$similarJobs = [];
+if (is_db_connected()) {
+    try {
+        $simQuery = "SELECT j.*, e.company_name, e.company_logo 
+                     FROM jobs j 
+                     JOIN employer e ON j.employer_id = e.id 
+                     WHERE j.id != ? AND (j.category_id = ? OR j.job_type = ?) AND j.status = 'active' 
+                     LIMIT 3";
+        $simStmt = @$connect->prepare($simQuery);
+        if ($simStmt) {
+            $catIdParam = $job['category_id'] ?? 0;
+            $simStmt->bind_param("iis", $jobId, $catIdParam, $job['job_type']);
+            $simStmt->execute();
+            $simRes = $simStmt->get_result();
+            if ($simRes) {
+                $similarJobs = $simRes->fetch_all(MYSQLI_ASSOC);
+            }
+            $simStmt->close();
+        }
+    } catch (Throwable $e) {
+        $similarJobs = [];
+    }
+}
+
+if (empty($similarJobs)) {
+    $allFallback = get_fallback_jobs();
+    $similarJobs = array_filter($allFallback, function($item) use ($jobId) {
+        return $item['id'] != $jobId;
+    });
+    $similarJobs = array_slice($similarJobs, 0, 3);
+}
 
 $pageTitle = htmlspecialchars($job['title']) . " - " . htmlspecialchars($job['company_name']);
 require_once __DIR__ . '/includes/header.php';

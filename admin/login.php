@@ -17,30 +17,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
 
     if (!empty($usernameOrEmail) && !empty($password)) {
-        if ($connect) {
-            $stmt = $connect->prepare("SELECT id, username, email, password, role FROM admins WHERE username = ? OR email = ?");
-            $stmt->bind_param("ss", $usernameOrEmail, $usernameOrEmail);
-            $stmt->execute();
-            $result = $stmt->get_result();
+        $authenticated = false;
 
-            if ($result->num_rows === 1) {
-                $row = $result->fetch_assoc();
-                if (password_verify($password, $row['password'])) {
-                    // Set complete user session with stateless signed cookie
-                    set_user_session($row['id'], 'admin', $row['username'], $row['email'], 'images/logo.png');
+        if (is_db_connected()) {
+            try {
+                $stmt = @$connect->prepare("SELECT id, username, email, password, role FROM admins WHERE username = ? OR email = ?");
+                if ($stmt) {
+                    $stmt->bind_param("ss", $usernameOrEmail, $usernameOrEmail);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
 
-                    set_flash('success', "Welcome to the Admin Portal, " . htmlspecialchars($row['username']) . "!");
-                    header("Location: " . BASE_URL . "admin/index.php");
-                    exit();
-                } else {
-                    $error = "Invalid administrator credentials.";
+                    if ($result && $result->num_rows === 1) {
+                        $row = $result->fetch_assoc();
+                        if (password_verify($password, $row['password'])) {
+                            set_user_session($row['id'], 'admin', $row['username'], $row['email'], 'images/logo.png');
+                            $authenticated = true;
+                        } else {
+                            $error = "Invalid administrator credentials.";
+                        }
+                    } else {
+                        $error = "No administrator account found with those credentials.";
+                    }
+                    $stmt->close();
                 }
-            } else {
-                $error = "No administrator account found with those credentials.";
+            } catch (Throwable $e) {
+                // Silently fallback
             }
-            $stmt->close();
-        } else {
-            $error = "Database connection failed.";
+        }
+
+        // Fallback demo authentication if DB offline or testing demo account
+        if (!$authenticated && empty($error)) {
+            $fallbackUser = verify_fallback_demo_auth('admin', $usernameOrEmail, $password);
+            if ($fallbackUser) {
+                set_user_session($fallbackUser['id'], 'admin', $fallbackUser['username'], $fallbackUser['email'], 'images/logo.png');
+                $authenticated = true;
+            } elseif (!is_db_connected()) {
+                $error = "Invalid credentials for demo admin account (admin / admin123).";
+            }
+        }
+
+        if ($authenticated) {
+            set_flash('success', "Welcome to the Admin Portal, " . htmlspecialchars($_SESSION['user_name']) . "!");
+            header("Location: " . BASE_URL . "admin/index.php");
+            exit();
         }
     } else {
         $error = "Please enter both username/email and password.";

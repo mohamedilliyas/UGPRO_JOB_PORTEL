@@ -7,32 +7,62 @@ require_once __DIR__ . '/includes/auth.php';
 $search = clean_input($_GET['q'] ?? '');
 $faculty = clean_input($_GET['faculty'] ?? '');
 
-$query = "SELECT * FROM undergraduate WHERE status = 'active'";
-$params = [];
-$types = "";
+$candidates = [];
 
-if (!empty($search)) {
-    $query .= " AND (full_name LIKE ? OR skills LIKE ? OR course LIKE ? OR projects LIKE ?)";
-    $term = "%" . $search . "%";
-    $params[] = $term; $params[] = $term; $params[] = $term; $params[] = $term;
-    $types .= "ssss";
+if (is_db_connected()) {
+    $query = "SELECT * FROM undergraduate WHERE status = 'active'";
+    $params = [];
+    $types = "";
+
+    if (!empty($search)) {
+        $query .= " AND (full_name LIKE ? OR skills LIKE ? OR course LIKE ? OR projects LIKE ?)";
+        $term = "%" . $search . "%";
+        $params[] = $term; $params[] = $term; $params[] = $term; $params[] = $term;
+        $types .= "ssss";
+    }
+
+    if (!empty($faculty)) {
+        $query .= " AND faculty = ?";
+        $params[] = $faculty;
+        $types .= "s";
+    }
+
+    $query .= " ORDER BY id DESC";
+
+    try {
+        $stmt = @$connect->prepare($query);
+        if ($stmt) {
+            if (!empty($params)) {
+                $stmt->bind_param($types, ...$params);
+            }
+            $stmt->execute();
+            $res = $stmt->get_result();
+            if ($res) {
+                $candidates = $res->fetch_all(MYSQLI_ASSOC);
+            }
+            $stmt->close();
+        }
+    } catch (Throwable $e) {
+        $candidates = [];
+    }
 }
 
-if (!empty($faculty)) {
-    $query .= " AND faculty = ?";
-    $params[] = $faculty;
-    $types .= "s";
+if (empty($candidates)) {
+    $fallbackList = get_fallback_candidates();
+    $candidates = array_filter($fallbackList, function($item) use ($search, $faculty) {
+        if (!empty($search)) {
+            $s = strtolower($search);
+            $match = (stripos($item['full_name'], $s) !== false) || 
+                     (stripos($item['skills'], $s) !== false) || 
+                     (stripos($item['course'], $s) !== false);
+            if (!$match) return false;
+        }
+        if (!empty($faculty) && ($item['faculty'] ?? '') !== $faculty) {
+            return false;
+        }
+        return true;
+    });
 }
-
-$query .= " ORDER BY id DESC";
-
-$stmt = $connect->prepare($query);
-if (!empty($params)) {
-    $stmt->bind_param($types, ...$params);
-}
-$stmt->execute();
-$candidates = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-$stmt->close();
 
 $pageTitle = "Undergraduate Talent Pool - UgPro";
 require_once __DIR__ . '/includes/header.php';

@@ -13,61 +13,107 @@ $location = clean_input($_GET['location'] ?? '');
 
 // Fetch Categories
 $categories = [];
-if ($connect) {
-    $catRes = $connect->query("SELECT * FROM job_categories ORDER BY name ASC");
-    if ($catRes) $categories = $catRes->fetch_all(MYSQLI_ASSOC);
+if (is_db_connected()) {
+    $catRes = @$connect->query("SELECT * FROM job_categories ORDER BY name ASC");
+    if ($catRes && $catRes->num_rows > 0) {
+        $categories = $catRes->fetch_all(MYSQLI_ASSOC);
+    }
+}
+if (empty($categories)) {
+    $categories = get_fallback_categories();
 }
 
-// Build query
-$query = "SELECT j.*, e.company_name, e.company_logo, c.name AS category_name, c.slug AS category_slug 
-          FROM jobs j 
-          JOIN employer e ON j.employer_id = e.id 
-          LEFT JOIN job_categories c ON j.category_id = c.id 
-          WHERE j.status = 'active'";
+$jobs = [];
 
-$params = [];
-$types = "";
+if (is_db_connected()) {
+    // Build query
+    $query = "SELECT j.*, e.company_name, e.company_logo, c.name AS category_name, c.slug AS category_slug 
+              FROM jobs j 
+              JOIN employer e ON j.employer_id = e.id 
+              LEFT JOIN job_categories c ON j.category_id = c.id 
+              WHERE j.status = 'active'";
 
-if (!empty($search)) {
-    $query .= " AND (j.title LIKE ? OR j.description LIKE ? OR j.requirements LIKE ? OR e.company_name LIKE ?)";
-    $term = "%" . $search . "%";
-    $params[] = $term; $params[] = $term; $params[] = $term; $params[] = $term;
-    $types .= "ssss";
+    $params = [];
+    $types = "";
+
+    if (!empty($search)) {
+        $query .= " AND (j.title LIKE ? OR j.description LIKE ? OR j.requirements LIKE ? OR e.company_name LIKE ?)";
+        $term = "%" . $search . "%";
+        $params[] = $term; $params[] = $term; $params[] = $term; $params[] = $term;
+        $types .= "ssss";
+    }
+
+    if (!empty($categorySlug)) {
+        $query .= " AND c.slug = ?";
+        $params[] = $categorySlug;
+        $types .= "s";
+    }
+
+    if (!empty($jobType)) {
+        $query .= " AND j.job_type = ?";
+        $params[] = $jobType;
+        $types .= "s";
+    }
+
+    if (!empty($workplace)) {
+        $query .= " AND j.workplace_type = ?";
+        $params[] = $workplace;
+        $types .= "s";
+    }
+
+    if (!empty($location)) {
+        $query .= " AND j.location LIKE ?";
+        $params[] = "%" . $location . "%";
+        $types .= "s";
+    }
+
+    $query .= " ORDER BY j.created_at DESC";
+
+    try {
+        $stmt = @$connect->prepare($query);
+        if ($stmt) {
+            if (!empty($params)) {
+                $stmt->bind_param($types, ...$params);
+            }
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result) {
+                $jobs = $result->fetch_all(MYSQLI_ASSOC);
+            }
+            $stmt->close();
+        }
+    } catch (Throwable $e) {
+        $jobs = [];
+    }
 }
 
-if (!empty($categorySlug)) {
-    $query .= " AND c.slug = ?";
-    $params[] = $categorySlug;
-    $types .= "s";
+// Fallback filtering if live jobs empty or DB offline
+if (empty($jobs)) {
+    $fallbackList = get_fallback_jobs();
+    $jobs = array_filter($fallbackList, function($item) use ($search, $categorySlug, $jobType, $workplace, $location) {
+        if (!empty($search)) {
+            $s = strtolower($search);
+            $match = (stripos($item['title'], $s) !== false) || 
+                     (stripos($item['company_name'], $s) !== false) || 
+                     (stripos($item['description'], $s) !== false) || 
+                     (stripos($item['requirements'], $s) !== false);
+            if (!$match) return false;
+        }
+        if (!empty($categorySlug) && ($item['category_slug'] ?? '') !== $categorySlug) {
+            return false;
+        }
+        if (!empty($jobType) && ($item['job_type'] ?? '') !== $jobType) {
+            return false;
+        }
+        if (!empty($workplace) && ($item['workplace_type'] ?? '') !== $workplace) {
+            return false;
+        }
+        if (!empty($location) && stripos($item['location'], $location) === false) {
+            return false;
+        }
+        return true;
+    });
 }
-
-if (!empty($jobType)) {
-    $query .= " AND j.job_type = ?";
-    $params[] = $jobType;
-    $types .= "s";
-}
-
-if (!empty($workplace)) {
-    $query .= " AND j.workplace_type = ?";
-    $params[] = $workplace;
-    $types .= "s";
-}
-
-if (!empty($location)) {
-    $query .= " AND j.location LIKE ?";
-    $params[] = "%" . $location . "%";
-    $types .= "s";
-}
-
-$query .= " ORDER BY j.created_at DESC";
-
-$stmt = $connect->prepare($query);
-if (!empty($params)) {
-    $stmt->bind_param($types, ...$params);
-}
-$stmt->execute();
-$jobs = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-$stmt->close();
 
 $pageTitle = "Browse Jobs & Internships - UgPro";
 require_once __DIR__ . '/includes/header.php';

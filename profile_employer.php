@@ -11,27 +11,39 @@ $updateErrors = [];
 $updateSuccess = '';
 
 // Handle Job Status Toggle (Active / Closed)
-if (isset($_GET['action']) && $_GET['action'] === 'toggle_status' && isset($_GET['job_id'])) {
+if (isset($_GET['action']) && $_GET['action'] === 'toggle_status' && isset($_GET['job_id']) && is_db_connected()) {
     $jobId = intval($_GET['job_id']);
-    $stmt = $connect->prepare("UPDATE jobs SET status = IF(status = 'active', 'closed', 'active') WHERE id = ? AND employer_id = ?");
-    $stmt->bind_param("ii", $jobId, $employerId);
-    if ($stmt->execute()) {
-        set_flash('success', 'Job listing status updated successfully.');
+    try {
+        $stmt = @$connect->prepare("UPDATE jobs SET status = IF(status = 'active', 'closed', 'active') WHERE id = ? AND employer_id = ?");
+        if ($stmt) {
+            $stmt->bind_param("ii", $jobId, $employerId);
+            if ($stmt->execute()) {
+                set_flash('success', 'Job listing status updated successfully.');
+            }
+            $stmt->close();
+        }
+    } catch (Throwable $e) {
+        // Continue
     }
-    $stmt->close();
     header("Location: " . BASE_URL . "profile_employer.php?tab=jobs");
     exit();
 }
 
 // Handle Job Deletion
-if (isset($_GET['action']) && $_GET['action'] === 'delete_job' && isset($_GET['job_id'])) {
+if (isset($_GET['action']) && $_GET['action'] === 'delete_job' && isset($_GET['job_id']) && is_db_connected()) {
     $jobId = intval($_GET['job_id']);
-    $stmt = $connect->prepare("DELETE FROM jobs WHERE id = ? AND employer_id = ?");
-    $stmt->bind_param("ii", $jobId, $employerId);
-    if ($stmt->execute()) {
-        set_flash('success', 'Job posting has been deleted.');
+    try {
+        $stmt = @$connect->prepare("DELETE FROM jobs WHERE id = ? AND employer_id = ?");
+        if ($stmt) {
+            $stmt->bind_param("ii", $jobId, $employerId);
+            if ($stmt->execute()) {
+                set_flash('success', 'Job posting has been deleted.');
+            }
+            $stmt->close();
+        }
+    } catch (Throwable $e) {
+        // Continue
     }
-    $stmt->close();
     header("Location: " . BASE_URL . "profile_employer.php?tab=jobs");
     exit();
 }
@@ -45,14 +57,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_company_profil
     $phone = clean_input($_POST['phone'] ?? '');
     $about = clean_input($_POST['about'] ?? '');
 
-    // Current logo
-    $currStmt = $connect->prepare("SELECT company_logo, email FROM employer WHERE id = ?");
-    $currStmt->bind_param("i", $employerId);
-    $currStmt->execute();
-    $currRow = $currStmt->get_result()->fetch_assoc();
-    $currLogo = $currRow['company_logo'] ?? 'images/google.png';
-    $currEmail = $currRow['email'] ?? $_SESSION['user_email'];
-    $currStmt->close();
+    $currLogo = 'images/google.png';
+    $currEmail = $_SESSION['user_email'] ?? 'careers@virtusa.com';
+
+    if (is_db_connected()) {
+        try {
+            $currStmt = @$connect->prepare("SELECT company_logo, email FROM employer WHERE id = ?");
+            if ($currStmt) {
+                $currStmt->bind_param("i", $employerId);
+                $currStmt->execute();
+                $currRow = $currStmt->get_result()->fetch_assoc();
+                $currLogo = $currRow['company_logo'] ?? 'images/google.png';
+                $currEmail = $currRow['email'] ?? $_SESSION['user_email'];
+                $currStmt->close();
+            }
+        } catch (Throwable $e) {
+            // Keep default
+        }
+    }
 
     $logoPath = $currLogo;
     if (isset($_FILES['company_logo']) && $_FILES['company_logo']['error'] === UPLOAD_ERR_OK) {
@@ -70,55 +92,92 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_company_profil
     if (!empty($newPassword)) {
         if (strlen($newPassword) >= 6) {
             $hashed = password_hash($newPassword, PASSWORD_BCRYPT);
-            $passwordSql = ", password = '" . mysqli_real_escape_string($connect, $hashed) . "'";
+            if (is_db_connected()) {
+                $passwordSql = ", password = '" . mysqli_real_escape_string($connect, $hashed) . "'";
+            }
         } else {
             $updateErrors[] = "New password must be at least 6 characters.";
         }
     }
 
     if (empty($updateErrors)) {
-        $upStmt = $connect->prepare("UPDATE employer SET company_name = ?, website = ?, location = ?, industry = ?, phone = ?, about = ?, company_logo = ? {$passwordSql} WHERE id = ?");
-        $upStmt->bind_param("sssssssi", $companyName, $website, $location, $industry, $phone, $about, $logoPath, $employerId);
-
-        if ($upStmt->execute()) {
+        if (is_db_connected()) {
+            try {
+                $upStmt = @$connect->prepare("UPDATE employer SET company_name = ?, website = ?, location = ?, industry = ?, phone = ?, about = ?, company_logo = ? {$passwordSql} WHERE id = ?");
+                if ($upStmt) {
+                    $upStmt->bind_param("sssssssi", $companyName, $website, $location, $industry, $phone, $about, $logoPath, $employerId);
+                    if ($upStmt->execute()) {
+                        set_user_session($employerId, 'employer', $companyName, $currEmail, $logoPath);
+                        $_SESSION['employer_id'] = $employerId;
+                        $_SESSION['company_name'] = $companyName;
+                        $updateSuccess = "Company profile updated successfully!";
+                        $activeTab = 'settings';
+                    } else {
+                        $updateErrors[] = "Database update error: " . $connect->error;
+                    }
+                    $upStmt->close();
+                }
+            } catch (Throwable $e) {
+                $updateErrors[] = "Update failed: " . $e->getMessage();
+            }
+        } else {
             set_user_session($employerId, 'employer', $companyName, $currEmail, $logoPath);
             $_SESSION['employer_id'] = $employerId;
             $_SESSION['company_name'] = $companyName;
-            $updateSuccess = "Company profile updated successfully!";
+            $updateSuccess = "Company profile updated (simulated demo mode).";
             $activeTab = 'settings';
-        } else {
-            $updateErrors[] = "Database update error: " . $connect->error;
         }
-        $upStmt->close();
     }
 }
 
-// Fetch employer record
-$empStmt = $connect->prepare("SELECT * FROM employer WHERE id = ?");
-$empStmt->bind_param("i", $employerId);
-$empStmt->execute();
-$employer = $empStmt->get_result()->fetch_assoc();
-$empStmt->close();
+$employer = null;
+$postedJobs = [];
 
-if (!$employer) {
-    clear_user_session();
-    header("Location: " . BASE_URL . "signin_employer.php");
-    exit();
+if (is_db_connected()) {
+    try {
+        $empStmt = @$connect->prepare("SELECT * FROM employer WHERE id = ?");
+        if ($empStmt) {
+            $empStmt->bind_param("i", $employerId);
+            $empStmt->execute();
+            $employer = $empStmt->get_result()->fetch_assoc();
+            $empStmt->close();
+        }
+
+        // Fetch employer's jobs with applicant counts
+        $jobsQuery = "SELECT j.*, c.name AS category_name, 
+                      (SELECT COUNT(*) FROM job_applications WHERE job_id = j.id) AS total_applicants,
+                      (SELECT COUNT(*) FROM job_applications WHERE job_id = j.id AND status = 'shortlisted') AS shortlisted_applicants
+                      FROM jobs j 
+                      LEFT JOIN job_categories c ON j.category_id = c.id 
+                      WHERE j.employer_id = ? 
+                      ORDER BY j.created_at DESC";
+        $jobsStmt = @$connect->prepare($jobsQuery);
+        if ($jobsStmt) {
+            $jobsStmt->bind_param("i", $employerId);
+            $jobsStmt->execute();
+            $postedJobs = $jobsStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $jobsStmt->close();
+        }
+    } catch (Throwable $e) {
+        $employer = null;
+    }
 }
 
-// Fetch employer's jobs with applicant counts
-$jobsQuery = "SELECT j.*, c.name AS category_name, 
-              (SELECT COUNT(*) FROM job_applications WHERE job_id = j.id) AS total_applicants,
-              (SELECT COUNT(*) FROM job_applications WHERE job_id = j.id AND status = 'shortlisted') AS shortlisted_applicants
-              FROM jobs j 
-              LEFT JOIN job_categories c ON j.category_id = c.id 
-              WHERE j.employer_id = ? 
-              ORDER BY j.created_at DESC";
-$jobsStmt = $connect->prepare($jobsQuery);
-$jobsStmt->bind_param("i", $employerId);
-$jobsStmt->execute();
-$postedJobs = $jobsStmt->get_result()->fetch_all(MYSQLI_ASSOC);
-$jobsStmt->close();
+if (!$employer) {
+    $fallbackJobs = get_fallback_jobs();
+    $employer = [
+        'id' => $employerId,
+        'company_name' => $_SESSION['user_name'] ?? 'Virtusa (Pvt) Ltd',
+        'email' => $_SESSION['user_email'] ?? 'careers@virtusa.com',
+        'company_logo' => $_SESSION['user_avatar'] ?? 'images/google.png',
+        'website' => 'https://www.virtusa.com',
+        'location' => 'Colombo 07, Sri Lanka',
+        'industry' => 'Information Technology & Services',
+        'phone' => '+94 11 234 5678',
+        'about' => 'Virtusa Corporation is a global provider of digital business strategy, digital engineering, and IT services.'
+    ];
+    $postedJobs = array_slice($fallbackJobs, 0, 2);
+}
 
 // Stats calculation
 $totalJobsCount = count($postedJobs);

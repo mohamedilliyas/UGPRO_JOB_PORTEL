@@ -58,34 +58,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // If no validation errors, proceed to database
     if (empty($errors)) {
-        if ($connect) {
-            // Check if email already registered
-            $checkStmt = $connect->prepare("SELECT id FROM undergraduate WHERE email = ?");
-            $checkStmt->bind_param("s", $email);
-            $checkStmt->execute();
-            $checkResult = $checkStmt->get_result();
+        if (is_db_connected()) {
+            try {
+                // Check if email already registered
+                $checkStmt = @$connect->prepare("SELECT id FROM undergraduate WHERE email = ?");
+                if ($checkStmt) {
+                    $checkStmt->bind_param("s", $email);
+                    $checkStmt->execute();
+                    $checkResult = $checkStmt->get_result();
 
-            if ($checkResult->num_rows > 0) {
-                $errors[] = "This email is already registered. Please sign in instead.";
-            } else {
-                $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
-                $stmt = $connect->prepare("INSERT INTO undergraduate (full_name, email, password, reg_no, faculty, course, graduation_year, phone, skills, projects, bio, github, linkedin, portfolio_url, profile_image, resume_file) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt->bind_param("ssssssisssssssss", $fullName, $email, $hashedPassword, $regNo, $faculty, $course, $gradYear, $phone, $skills, $projects, $bio, $github, $linkedin, $portfolio, $profileImagePath, $resumePath);
+                    if ($checkResult && $checkResult->num_rows > 0) {
+                        $errors[] = "This email is already registered. Please sign in instead.";
+                    } else {
+                        $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
+                        $stmt = @$connect->prepare("INSERT INTO undergraduate (full_name, email, password, reg_no, faculty, course, graduation_year, phone, skills, projects, bio, github, linkedin, portfolio_url, profile_image, resume_file) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                        if ($stmt) {
+                            $stmt->bind_param("ssssssisssssssss", $fullName, $email, $hashedPassword, $regNo, $faculty, $course, $gradYear, $phone, $skills, $projects, $bio, $github, $linkedin, $portfolio, $profileImagePath, $resumePath);
 
-                if ($stmt->execute()) {
-                    $newId = $stmt->insert_id;
-                    // Auto login with stateless signed cookie
-                    set_user_session($newId, 'student', $fullName, $email, $profileImagePath, $course);
-
-                    set_flash('success', 'Registration successful! Welcome to your UgPro Career Hub.');
-                    header("Location: " . BASE_URL . "profile_undergraduate.php");
-                    exit();
-                } else {
-                    $errors[] = "Database error: " . $connect->error;
+                            if ($stmt->execute()) {
+                                $newStudentId = $stmt->insert_id;
+                                set_user_session($newStudentId, 'student', $fullName, $email, $profileImagePath, $course);
+                                set_flash('success', "Welcome to UgPro, " . htmlspecialchars($fullName) . "! Your student profile has been created.");
+                                header("Location: " . BASE_URL . "profile_undergraduate.php");
+                                exit();
+                            } else {
+                                $errors[] = "Registration failed: " . $connect->error;
+                            }
+                            $stmt->close();
+                        }
+                    }
+                    $checkStmt->close();
                 }
-                $stmt->close();
+            } catch (Throwable $e) {
+                $errors[] = "Database error: " . $e->getMessage();
             }
-            $checkStmt->close();
         } else {
             $errors[] = "Unable to connect to database. Please check configuration.";
         }

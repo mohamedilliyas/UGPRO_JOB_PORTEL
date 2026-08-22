@@ -17,43 +17,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
 
     if ($email && $password) {
-        if ($connect) {
-            $stmt = $connect->prepare("SELECT id, company_name, email, password, company_logo, status FROM employer WHERE email = ?");
-            $stmt->bind_param("s", $email);
-            $stmt->execute();
-            $result = $stmt->get_result();
+        $authenticated = false;
 
-            if ($result->num_rows === 1) {
-                $row = $result->fetch_assoc();
-                
-                if ($row['status'] === 'suspended') {
-                    $error = "This company account is currently suspended. Please contact portal administration.";
-                } elseif (password_verify($password, $row['password'])) {
-                    // Set complete user session with stateless signed cookie
-                    set_user_session(
-                        $row['id'],
-                        'employer',
-                        $row['company_name'],
-                        $row['email'],
-                        !empty($row['company_logo']) ? $row['company_logo'] : 'images/google.png'
-                    );
+        if (is_db_connected()) {
+            try {
+                $stmt = @$connect->prepare("SELECT id, company_name, email, password, company_logo, status FROM employer WHERE email = ?");
+                if ($stmt) {
+                    $stmt->bind_param("s", $email);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
 
-                    // Backward compatibility key
-                    $_SESSION['employer_id'] = $row['id'];
-                    $_SESSION['company_name'] = $row['company_name'];
-
-                    set_flash('success', "Welcome back, " . htmlspecialchars($row['company_name']) . "!");
-                    header("Location: " . BASE_URL . "profile_employer.php");
-                    exit();
-                } else {
-                    $error = "Incorrect password. Please try again.";
+                    if ($result && $result->num_rows === 1) {
+                        $row = $result->fetch_assoc();
+                        
+                        if ($row['status'] === 'suspended') {
+                            $error = "This company account is currently suspended. Please contact portal administration.";
+                        } elseif (password_verify($password, $row['password'])) {
+                            set_user_session(
+                                $row['id'],
+                                'employer',
+                                $row['company_name'],
+                                $row['email'],
+                                !empty($row['company_logo']) ? $row['company_logo'] : 'images/google.png'
+                            );
+                            $_SESSION['employer_id'] = $row['id'];
+                            $_SESSION['company_name'] = $row['company_name'];
+                            $authenticated = true;
+                        } else {
+                            $error = "Incorrect password. Please try again.";
+                        }
+                    } else {
+                        $error = "No employer account found with this email.";
+                    }
+                    $stmt->close();
                 }
-            } else {
-                $error = "No employer account found with this email.";
+            } catch (Throwable $e) {
+                // Silently fallback
             }
-            $stmt->close();
-        } else {
-            $error = "Database connection error.";
+        }
+
+        // Fallback demo authentication if DB offline or testing demo account
+        if (!$authenticated && empty($error)) {
+            $fallbackUser = verify_fallback_demo_auth('employer', $email, $password);
+            if ($fallbackUser) {
+                set_user_session(
+                    $fallbackUser['id'],
+                    'employer',
+                    $fallbackUser['company_name'],
+                    $fallbackUser['email'],
+                    $fallbackUser['company_logo']
+                );
+                $_SESSION['employer_id'] = $fallbackUser['id'];
+                $_SESSION['company_name'] = $fallbackUser['company_name'];
+                $authenticated = true;
+            } elseif (!is_db_connected()) {
+                $error = "Incorrect credentials for demo employer account (careers@virtusa.com / employer123).";
+            }
+        }
+
+        if ($authenticated) {
+            set_flash('success', "Welcome back, " . htmlspecialchars($_SESSION['company_name'] ?? 'Employer') . "!");
+            header("Location: " . BASE_URL . "profile_employer.php");
+            exit();
         }
     } else {
         $error = "Please provide both your company email and password.";

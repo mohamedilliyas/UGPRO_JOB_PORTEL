@@ -9,53 +9,81 @@ $employerId = $_SESSION['user_id'];
 $filterJobId = intval($_GET['job_id'] ?? 0);
 
 // Handle Status & Notes Update
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_application_status'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_application_status']) && is_db_connected()) {
     $appId = intval($_POST['application_id'] ?? 0);
     $newStatus = clean_input($_POST['status'] ?? 'pending');
     $notes = clean_input($_POST['employer_notes'] ?? '');
 
     // Verify application belongs to one of this employer's jobs
-    $verifyStmt = $connect->prepare("SELECT a.id FROM job_applications a JOIN jobs j ON a.job_id = j.id WHERE a.id = ? AND j.employer_id = ?");
-    $verifyStmt->bind_param("ii", $appId, $employerId);
-    $verifyStmt->execute();
-    if ($verifyStmt->get_result()->num_rows === 1) {
-        $upStmt = $connect->prepare("UPDATE job_applications SET status = ?, employer_notes = ? WHERE id = ?");
-        $upStmt->bind_param("ssi", $newStatus, $notes, $appId);
-        if ($upStmt->execute()) {
-            set_flash('success', 'Candidate application status and notes updated.');
+    try {
+        $verifyStmt = @$connect->prepare("SELECT a.id FROM job_applications a JOIN jobs j ON a.job_id = j.id WHERE a.id = ? AND j.employer_id = ?");
+        if ($verifyStmt) {
+            $verifyStmt->bind_param("ii", $appId, $employerId);
+            $verifyStmt->execute();
+            if ($verifyStmt->get_result()->num_rows === 1) {
+                $upStmt = @$connect->prepare("UPDATE job_applications SET status = ?, employer_notes = ? WHERE id = ?");
+                if ($upStmt) {
+                    $upStmt->bind_param("ssi", $newStatus, $notes, $appId);
+                    if ($upStmt->execute()) {
+                        set_flash('success', 'Candidate application status and notes updated.');
+                    }
+                    $upStmt->close();
+                }
+            }
+            $verifyStmt->close();
         }
-        $upStmt->close();
+    } catch (Throwable $e) {
+        // Continue
     }
-    $verifyStmt->close();
     header("Location: " . BASE_URL . "employer_applicants.php" . ($filterJobId > 0 ? "?job_id=" . $filterJobId : ""));
     exit();
 }
 
-// Fetch employer's jobs list for filter dropdown
-$empJobsStmt = $connect->prepare("SELECT id, title FROM jobs WHERE employer_id = ? ORDER BY title ASC");
-$empJobsStmt->bind_param("i", $employerId);
-$empJobsStmt->execute();
-$employerJobs = $empJobsStmt->get_result()->fetch_all(MYSQLI_ASSOC);
-$empJobsStmt->close();
+$employerJobs = [];
+$applicants = [];
 
-// Query applicants
-$query = "SELECT a.*, u.full_name, u.email AS student_email, u.phone AS student_phone, u.course, u.faculty, u.reg_no, u.graduation_year, u.skills, u.bio, u.github, u.linkedin, u.portfolio_url, u.profile_image, u.resume_file AS user_resume, j.title AS job_title, j.id AS job_id 
-          FROM job_applications a 
-          JOIN jobs j ON a.job_id = j.id 
-          JOIN undergraduate u ON a.undergraduate_id = u.id 
-          WHERE j.employer_id = ?";
+if (is_db_connected()) {
+    try {
+        // Fetch employer's jobs list for filter dropdown
+        $empJobsStmt = @$connect->prepare("SELECT id, title FROM jobs WHERE employer_id = ? ORDER BY title ASC");
+        if ($empJobsStmt) {
+            $empJobsStmt->bind_param("i", $employerId);
+            $empJobsStmt->execute();
+            $employerJobs = $empJobsStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $empJobsStmt->close();
+        }
 
-if ($filterJobId > 0) {
-    $query .= " AND j.id = " . $filterJobId;
+        // Query applicants
+        $query = "SELECT a.*, u.full_name, u.email AS student_email, u.phone AS student_phone, u.course, u.faculty, u.reg_no, u.graduation_year, u.skills, u.bio, u.github, u.linkedin, u.portfolio_url, u.profile_image, u.resume_file AS user_resume, j.title AS job_title, j.id AS job_id 
+                  FROM job_applications a 
+                  JOIN jobs j ON a.job_id = j.id 
+                  JOIN undergraduate u ON a.undergraduate_id = u.id 
+                  WHERE j.employer_id = ?";
+
+        if ($filterJobId > 0) {
+            $query .= " AND j.id = " . $filterJobId;
+        }
+
+        $query .= " ORDER BY a.applied_at DESC";
+
+        $stmt = @$connect->prepare($query);
+        if ($stmt) {
+            $stmt->bind_param("i", $employerId);
+            $stmt->execute();
+            $applicants = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+        }
+    } catch (Throwable $e) {
+        $applicants = [];
+    }
 }
 
-$query .= " ORDER BY a.applied_at DESC";
-
-$stmt = $connect->prepare($query);
-$stmt->bind_param("i", $employerId);
-$stmt->execute();
-$applicants = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-$stmt->close();
+if (empty($employerJobs)) {
+    $fallbackJobs = get_fallback_jobs();
+    foreach ($fallbackJobs as $fj) {
+        $employerJobs[] = ['id' => $fj['id'], 'title' => $fj['title']];
+    }
+}
 
 $pageTitle = "Applicant Tracking - UgPro";
 require_once __DIR__ . '/includes/header.php';

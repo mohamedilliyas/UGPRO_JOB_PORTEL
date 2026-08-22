@@ -17,43 +17,67 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
 
     if ($email && $password) {
-        if ($connect) {
-            $stmt = $connect->prepare("SELECT id, full_name, email, password, course, profile_image, status FROM undergraduate WHERE email = ?");
-            $stmt->bind_param("s", $email);
-            $stmt->execute();
-            $result = $stmt->get_result();
+        $authenticated = false;
 
-            if ($result->num_rows === 1) {
-                $row = $result->fetch_assoc();
-                
-                if ($row['status'] === 'banned') {
-                    $error = "Your student account has been suspended. Please contact university career guidance.";
-                } elseif (password_verify($password, $row['password'])) {
-                    // Set complete user session with stateless signed cookie
-                    set_user_session(
-                        $row['id'],
-                        'student',
-                        $row['full_name'],
-                        $row['email'],
-                        !empty($row['profile_image']) ? $row['profile_image'] : 'images/fl-3.png',
-                        $row['course'] ?? ''
-                    );
+        if (is_db_connected()) {
+            try {
+                $stmt = @$connect->prepare("SELECT id, full_name, email, password, course, profile_image, status FROM undergraduate WHERE email = ?");
+                if ($stmt) {
+                    $stmt->bind_param("s", $email);
+                    $stmt->execute();
+                    $result = $stmt->get_result();
 
-                    set_flash('success', "Welcome back, " . htmlspecialchars($row['full_name']) . "!");
-                    
-                    // Redirect to intended page or profile
-                    $redirect = $_GET['redirect'] ?? 'profile_undergraduate.php';
-                    header("Location: " . BASE_URL . $redirect);
-                    exit();
-                } else {
-                    $error = "Incorrect password. Please try again.";
+                    if ($result && $result->num_rows === 1) {
+                        $row = $result->fetch_assoc();
+                        
+                        if ($row['status'] === 'banned') {
+                            $error = "Your student account has been suspended. Please contact university career guidance.";
+                        } elseif (password_verify($password, $row['password'])) {
+                            set_user_session(
+                                $row['id'],
+                                'student',
+                                $row['full_name'],
+                                $row['email'],
+                                !empty($row['profile_image']) ? $row['profile_image'] : 'images/fl-3.png',
+                                $row['course'] ?? ''
+                            );
+                            $authenticated = true;
+                        } else {
+                            $error = "Incorrect password. Please try again.";
+                        }
+                    } else {
+                        $error = "No student account found with this email.";
+                    }
+                    $stmt->close();
                 }
-            } else {
-                $error = "No student account found with this email.";
+            } catch (Throwable $e) {
+                // Silently fallback
             }
-            $stmt->close();
-        } else {
-            $error = "Database connection error.";
+        }
+
+        // Fallback demo authentication if DB offline or testing demo account
+        if (!$authenticated && empty($error)) {
+            $fallbackUser = verify_fallback_demo_auth('student', $email, $password);
+            if ($fallbackUser) {
+                set_user_session(
+                    $fallbackUser['id'],
+                    'student',
+                    $fallbackUser['full_name'],
+                    $fallbackUser['email'],
+                    $fallbackUser['profile_image'],
+                    $fallbackUser['course']
+                );
+                $authenticated = true;
+            } elseif (!is_db_connected()) {
+                $error = "Incorrect credentials for demo student account (illiyas@vau.ac.lk / student123).";
+            }
+        }
+
+        if ($authenticated) {
+            set_flash('success', "Welcome back, " . htmlspecialchars($_SESSION['user_name']) . "!");
+            $redirect = $_GET['redirect'] ?? 'profile_undergraduate.php';
+            header("Location: " . BASE_URL . $redirect);
+            exit();
         }
     } else {
         $error = "Please provide both a valid email and password.";

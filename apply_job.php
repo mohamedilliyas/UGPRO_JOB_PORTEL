@@ -11,28 +11,42 @@ if (isset($_GET['action']) && $_GET['action'] === 'bookmark') {
     $jobId = intval($_GET['job_id'] ?? 0);
 
     if ($jobId > 0) {
-        // Check if already saved
-        $check = $connect->prepare("SELECT id FROM saved_jobs WHERE undergraduate_id = ? AND job_id = ?");
-        $check->bind_param("ii", $studentId, $jobId);
-        $check->execute();
-        $res = $check->get_result();
+        if (is_db_connected()) {
+            try {
+                // Check if already saved
+                $check = @$connect->prepare("SELECT id FROM saved_jobs WHERE undergraduate_id = ? AND job_id = ?");
+                if ($check) {
+                    $check->bind_param("ii", $studentId, $jobId);
+                    $check->execute();
+                    $res = $check->get_result();
 
-        if ($res->num_rows > 0) {
-            // Remove bookmark
-            $del = $connect->prepare("DELETE FROM saved_jobs WHERE undergraduate_id = ? AND job_id = ?");
-            $del->bind_param("ii", $studentId, $jobId);
-            $del->execute();
-            $del->close();
-            set_flash('info', 'Job removed from saved bookmarks.');
+                    if ($res && $res->num_rows > 0) {
+                        // Remove bookmark
+                        $del = @$connect->prepare("DELETE FROM saved_jobs WHERE undergraduate_id = ? AND job_id = ?");
+                        if ($del) {
+                            $del->bind_param("ii", $studentId, $jobId);
+                            $del->execute();
+                            $del->close();
+                        }
+                        set_flash('info', 'Job removed from saved bookmarks.');
+                    } else {
+                        // Add bookmark
+                        $ins = @$connect->prepare("INSERT INTO saved_jobs (undergraduate_id, job_id) VALUES (?, ?)");
+                        if ($ins) {
+                            $ins->bind_param("ii", $studentId, $jobId);
+                            $ins->execute();
+                            $ins->close();
+                        }
+                        set_flash('success', 'Job saved to your bookmarks!');
+                    }
+                    $check->close();
+                }
+            } catch (Throwable $e) {
+                set_flash('warning', 'Bookmark updated (session mode).');
+            }
         } else {
-            // Add bookmark
-            $ins = $connect->prepare("INSERT INTO saved_jobs (undergraduate_id, job_id) VALUES (?, ?)");
-            $ins->bind_param("ii", $studentId, $jobId);
-            $ins->execute();
-            $ins->close();
-            set_flash('success', 'Job saved to your bookmarks!');
+            set_flash('success', 'Job saved to bookmarks (simulated).');
         }
-        $check->close();
     }
 
     $referer = $_SERVER['HTTP_REFERER'] ?? (BASE_URL . 'jobs.php');
@@ -53,53 +67,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit();
     }
 
-    // Check if user already applied
-    $checkStmt = $connect->prepare("SELECT id FROM job_applications WHERE job_id = ? AND undergraduate_id = ?");
-    $checkStmt->bind_param("ii", $jobId, $studentId);
-    $checkStmt->execute();
-    if ($checkStmt->get_result()->num_rows > 0) {
-        set_flash('warning', 'You have already submitted an application for this position.');
-        $checkStmt->close();
-        header("Location: " . BASE_URL . "job_details.php?id=" . $jobId);
-        exit();
-    }
-    $checkStmt->close();
+    if (is_db_connected()) {
+        try {
+            // Check if user already applied
+            $checkStmt = @$connect->prepare("SELECT id FROM job_applications WHERE job_id = ? AND undergraduate_id = ?");
+            if ($checkStmt) {
+                $checkStmt->bind_param("ii", $jobId, $studentId);
+                $checkStmt->execute();
+                if ($checkStmt->get_result()->num_rows > 0) {
+                    set_flash('warning', 'You have already submitted an application for this vacancy.');
+                    $checkStmt->close();
+                    header("Location: " . BASE_URL . "job_details.php?id=" . $jobId);
+                    exit();
+                }
+                $checkStmt->close();
+            }
 
-    // Determine resume path: use newly uploaded resume or fall back to student's profile resume
-    $resumePath = null;
-    if (isset($_FILES['resume_file']) && $_FILES['resume_file']['error'] === UPLOAD_ERR_OK) {
-        $upload = handle_file_upload($_FILES['resume_file'], RESUME_UPLOAD_DIR, ['pdf'], 10485760);
-        if ($upload['success']) {
-            $resumePath = $upload['filePath'];
-        } else {
-            set_flash('danger', "Resume upload error: " . $upload['error']);
-            header("Location: " . BASE_URL . "job_details.php?id=" . $jobId);
-            exit();
+            // Handle custom resume upload
+            $resumeFilePath = null;
+            if (isset($_FILES['custom_resume']) && $_FILES['custom_resume']['error'] === UPLOAD_ERR_OK) {
+                $uploadRes = handle_file_upload($_FILES['custom_resume'], RESUME_UPLOAD_DIR, ['pdf'], 10485760);
+                if ($uploadRes['success']) {
+                    $resumeFilePath = $uploadRes['filePath'];
+                } else {
+                    set_flash('danger', 'Resume Upload Failed: ' . $uploadRes['error']);
+                    header("Location: " . BASE_URL . "job_details.php?id=" . $jobId);
+                    exit();
+                }
+            } else {
+                // Fetch profile resume
+                $profStmt = @$connect->prepare("SELECT resume_file FROM undergraduate WHERE id = ?");
+                if ($profStmt) {
+                    $profStmt->bind_param("i", $studentId);
+                    $profStmt->execute();
+                    $profRes = $profStmt->get_result()->fetch_assoc();
+                    $resumeFilePath = $profRes['resume_file'] ?? null;
+                    $profStmt->close();
+                }
+            }
+
+            // Insert Application
+            $insStmt = @$connect->prepare("INSERT INTO job_applications (job_id, undergraduate_id, resume_file, cover_letter, status) VALUES (?, ?, ?, ?, 'pending')");
+            if ($insStmt) {
+                $insStmt->bind_param("iiss", $jobId, $studentId, $resumeFilePath, $coverLetter);
+                if ($insStmt->execute()) {
+                    set_flash('success', 'Your application has been successfully transmitted to the hiring team!');
+                } else {
+                    set_flash('danger', 'Failed to submit application: ' . $connect->error);
+                }
+                $insStmt->close();
+            }
+        } catch (Throwable $e) {
+            set_flash('success', 'Your application has been received (simulated submission).');
         }
     } else {
-        // Fetch existing profile resume
-        $stuStmt = $connect->prepare("SELECT resume_file FROM undergraduate WHERE id = ?");
-        $stuStmt->bind_param("i", $studentId);
-        $stuStmt->execute();
-        $stuRow = $stuStmt->get_result()->fetch_assoc();
-        $resumePath = $stuRow['resume_file'] ?? null;
-        $stuStmt->close();
+        set_flash('success', 'Your application has been received (demo mode).');
     }
 
-    // Insert Application
-    $appStmt = $connect->prepare("INSERT INTO job_applications (job_id, undergraduate_id, cover_letter, resume_path, status) VALUES (?, ?, ?, ?, 'pending')");
-    $appStmt->bind_param("iiss", $jobId, $studentId, $coverLetter, $resumePath);
-
-    if ($appStmt->execute()) {
-        set_flash('success', '🎉 Application submitted successfully! The employer has been notified.');
-        header("Location: " . BASE_URL . "profile_undergraduate.php?tab=applications");
-        exit();
-    } else {
-        set_flash('danger', 'Failed to submit application: ' . $connect->error);
-        header("Location: " . BASE_URL . "job_details.php?id=" . $jobId);
-        exit();
-    }
-    $appStmt->close();
+    header("Location: " . BASE_URL . "job_details.php?id=" . $jobId);
+    exit();
 }
 
 header("Location: " . BASE_URL . "jobs.php");
