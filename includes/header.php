@@ -31,6 +31,47 @@ if (!isset($pageTitle)) {
     <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="<?= BASE_URL ?>style.css?v=3.2">
+    <link rel="stylesheet" href="<?= BASE_URL ?>style.css?v=3.3">
+    <style>
+        /* Critical Navbar & Dropdown Styling */
+        .nav-menu .dropdown-menu {
+            background-color: #ffffff !important;
+            border: 1px solid rgba(0, 0, 0, 0.1) !important;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18) !important;
+            border-radius: 12px !important;
+            padding: 8px !important;
+            min-width: 240px !important;
+            z-index: 99999 !important;
+        }
+        .nav-menu .dropdown-menu .dropdown-item,
+        .nav-menu .dropdown-menu li a {
+            color: #1e293b !important;
+            background-color: transparent !important;
+            font-size: 0.92rem !important;
+            font-weight: 500 !important;
+            padding: 8px 12px !important;
+            border-radius: 8px !important;
+            display: flex !important;
+            align-items: center !important;
+            transition: background 0.15s ease, color 0.15s ease !important;
+        }
+        .nav-menu .dropdown-menu .dropdown-item:hover,
+        .nav-menu .dropdown-menu li a:hover {
+            background-color: #f1f5f9 !important;
+            color: #0f3d32 !important;
+        }
+        .nav-menu .dropdown-header {
+            color: #64748b !important;
+            font-size: 0.72rem !important;
+            font-weight: 700 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.5px !important;
+            padding: 6px 12px 4px !important;
+        }
+        .nav-menu .dropdown-divider {
+            border-top: 1px solid #e2e8f0 !important;
+            margin: 6px 0 !important;
+        }
+    </style>
 </head>
 <body>
