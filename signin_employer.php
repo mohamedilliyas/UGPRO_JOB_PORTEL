@@ -40,14 +40,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $row['email'],
                                 !empty($row['company_logo']) ? $row['company_logo'] : 'images/google.png'
                             );
-                            $_SESSION['employer_id'] = $row['id'];
-                            $_SESSION['company_name'] = $row['company_name'];
                             $authenticated = true;
                         } else {
                             $error = "Incorrect password. Please try again.";
                         }
-                    } else {
-                        $error = "No employer account found with this email.";
                     }
                     $stmt->close();
                 }
@@ -67,11 +63,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $fallbackUser['email'],
                     $fallbackUser['company_logo']
                 );
-                $_SESSION['employer_id'] = $fallbackUser['id'];
-                $_SESSION['company_name'] = $fallbackUser['company_name'];
                 $authenticated = true;
-            } elseif (!is_db_connected()) {
-                $error = "Incorrect credentials for demo employer account (careers@virtusa.com / employer123).";
+            } else {
+                $error = "No employer account found with this email. Please check your credentials or register your company.";
             }
         }
 

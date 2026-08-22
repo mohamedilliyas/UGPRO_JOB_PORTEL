@@ -35,8 +35,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         } else {
                             $error = "Invalid administrator credentials.";
                         }
-                    } else {
-                        $error = "No administrator account found with those credentials.";
                     }
                     $stmt->close();
                 }
@@ -51,8 +49,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($fallbackUser) {
                 set_user_session($fallbackUser['id'], 'admin', $fallbackUser['username'], $fallbackUser['email'], 'images/logo.png');
                 $authenticated = true;
-            } elseif (!is_db_connected()) {
-                $error = "Invalid credentials for demo admin account (admin / admin123).";
+            } else {
+                $error = "Invalid administrator credentials.";
             }
         }
 

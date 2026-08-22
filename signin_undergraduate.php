@@ -45,8 +45,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         } else {
                             $error = "Incorrect password. Please try again.";
                         }
-                    } else {
-                        $error = "No student account found with this email.";
                     }
                     $stmt->close();
                 }
@@ -68,8 +66,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $fallbackUser['course']
                 );
                 $authenticated = true;
-            } elseif (!is_db_connected()) {
-                $error = "Incorrect credentials for demo student account (illiyas@vau.ac.lk / student123).";
+            } else {
+                $error = "No student account found with this email. Please check your credentials or create an account.";
             }
         }
 

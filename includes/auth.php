@@ -24,14 +24,29 @@ if (!function_exists('restore_auth_from_cookie')) {
                 if (hash_equals($expectedSig, $sig)) {
                     $data = json_decode(base64_decode($payload), true);
                     if ($data && isset($data['exp']) && $data['exp'] > time() && !empty($data['id'])) {
-                        $_SESSION['user_id'] = $data['id'];
-                        $_SESSION['user_role'] = $data['role'];
-                        $_SESSION['user_name'] = $data['name'];
-                        $_SESSION['user_email'] = $data['email'];
-                        $_SESSION['user_avatar'] = !empty($data['avatar']) ? $data['avatar'] : ($data['role'] === 'employer' ? 'images/google.png' : 'images/fl-3.png');
+                        $role = $data['role'] ?? 'student';
+                        $id = (int)$data['id'];
+                        $name = $data['name'] ?? 'User';
+
+                        $_SESSION['user_id'] = $id;
+                        $_SESSION['user_role'] = $role;
+                        $_SESSION['user_name'] = $name;
+                        $_SESSION['user_email'] = $data['email'] ?? '';
+                        $_SESSION['user_avatar'] = !empty($data['avatar']) ? $data['avatar'] : ($role === 'employer' ? 'images/google.png' : 'images/fl-3.png');
                         $_SESSION['user_course'] = $data['course'] ?? '';
-                        $_SESSION['fullname'] = $data['name'];
+                        $_SESSION['fullname'] = $name;
                         $_SESSION['course'] = $data['course'] ?? '';
+
+                        // Role-specific convenience session variables
+                        if ($role === 'employer') {
+                            $_SESSION['employer_id'] = $id;
+                            $_SESSION['company_name'] = $name;
+                        } elseif ($role === 'student') {
+                            $_SESSION['student_id'] = $id;
+                        } elseif ($role === 'admin') {
+                            $_SESSION['admin_id'] = $id;
+                            $_SESSION['admin_logged_in'] = true;
+                        }
                     }
                 }
             }
@@ -48,6 +63,7 @@ restore_auth_from_cookie();
 if (!function_exists('set_user_session')) {
     function set_user_session($id, $role, $name, $email, $avatar = '', $course = '') {
         $avatarPath = !empty($avatar) ? $avatar : ($role === 'employer' ? 'images/google.png' : 'images/fl-3.png');
+        $id = (int)$id;
 
         // 1. Populate PHP Session
         $_SESSION['user_id'] = $id;
@@ -59,9 +75,20 @@ if (!function_exists('set_user_session')) {
         $_SESSION['fullname'] = $name;
         $_SESSION['course'] = $course;
 
+        // Role-specific convenience session variables
+        if ($role === 'employer') {
+            $_SESSION['employer_id'] = $id;
+            $_SESSION['company_name'] = $name;
+        } elseif ($role === 'student') {
+            $_SESSION['student_id'] = $id;
+        } elseif ($role === 'admin') {
+            $_SESSION['admin_id'] = $id;
+            $_SESSION['admin_logged_in'] = true;
+        }
+
         // 2. Issue HMAC-SHA256 signed stateless cookie (valid for 14 days)
         $data = [
-            'id' => (int)$id,
+            'id' => $id,
             'role' => $role,
             'name' => $name,
             'email' => $email,
